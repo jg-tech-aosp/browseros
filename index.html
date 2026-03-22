@@ -1,0 +1,2363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrowserOS</title>
+<style>
+  :root {
+    --accent: #0078d4;
+    --accent2: #005a9e;
+    --taskbar-h: 44px;
+    --bg: #1a1a2e;
+    --wallpaper: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    --win-bg: #1e1e2e;
+    --win-border: #3a3a5c;
+    --win-titlebar: #2a2a4a;
+    --win-titlebar-text: #e0e0ff;
+    --text: #e0e0ff;
+    --text-dim: #8888aa;
+    --input-bg: #2a2a3e;
+    --sidebar-bg: #15152a;
+    --hover: #2d2d4e;
+    --selected: #0078d420;
+    --font: 'Segoe UI', system-ui, sans-serif;
+    --radius: 8px;
+    --shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font);
+    background: var(--wallpaper);
+    color: var(--text);
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  #desktop {
+    position: absolute;
+    inset: 0 0 var(--taskbar-h) 0;
+    overflow: hidden;
+  }
+  /* Desktop icons */
+  .desktop-icon {
+    position: absolute;
+    width: 76px;
+    text-align: center;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    transition: background 0.15s;
+  }
+  .desktop-icon:hover { background: rgba(255,255,255,0.1); }
+  .desktop-icon.selected { background: rgba(0,120,212,0.3); }
+  .desktop-icon .icon-img { font-size: 36px; display: block; }
+  .desktop-icon .icon-label {
+    font-size: 11px;
+    color: #fff;
+    text-shadow: 0 1px 3px #000;
+    margin-top: 4px;
+    word-break: break-word;
+  }
+  /* Taskbar */
+  #taskbar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: var(--taskbar-h);
+    background: rgba(15,12,40,0.92);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 4px;
+    z-index: 9000;
+  }
+  #start-btn {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 18px;
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  #start-btn:hover { background: var(--accent2); }
+  #taskbar-apps {
+    display: flex; gap: 4px; flex: 1;
+  }
+  .taskbar-btn {
+    height: 34px;
+    padding: 0 10px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 12px;
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+    transition: background 0.15s;
+    max-width: 160px;
+    overflow: hidden;
+  }
+  .taskbar-btn.active { background: rgba(0,120,212,0.4); border-color: var(--accent); }
+  .taskbar-btn:hover { background: rgba(255,255,255,0.15); }
+  #clock {
+    font-size: 12px;
+    color: var(--text);
+    text-align: right;
+    padding: 0 8px;
+    white-space: nowrap;
+  }
+  /* Start menu */
+  #start-menu {
+    position: absolute;
+    bottom: calc(var(--taskbar-h) + 8px);
+    left: 8px;
+    width: 340px;
+    background: rgba(20,20,40,0.97);
+    backdrop-filter: blur(30px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    z-index: 9500;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #start-menu.open { display: flex; }
+  #start-search {
+    margin: 12px;
+    padding: 8px 12px;
+    background: var(--input-bg);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+  }
+  #start-search:focus { border-color: var(--accent); }
+  .start-section-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    padding: 4px 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .start-app-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    padding: 4px 12px 12px;
+  }
+  .start-app-item {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 10px 4px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-size: 11px;
+    text-align: center;
+    gap: 6px;
+  }
+  .start-app-item:hover { background: var(--hover); }
+  .start-app-item .sai-icon { font-size: 28px; }
+  /* Windows */
+  .window {
+    position: absolute;
+    background: var(--win-bg);
+    border: 1px solid var(--win-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    min-width: 300px;
+    min-height: 200px;
+    overflow: hidden;
+  }
+  .window.minimized { display: none; }
+  .window.maximized {
+    top: 0 !important; left: 0 !important;
+    width: 100% !important; height: calc(100vh - var(--taskbar-h)) !important;
+    border-radius: 0;
+  }
+  .titlebar {
+    height: 36px;
+    background: var(--win-titlebar);
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 8px;
+    cursor: move;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--win-border);
+  }
+  .titlebar .win-icon { font-size: 16px; }
+  .titlebar .win-title {
+    flex: 1;
+    font-size: 13px;
+    color: var(--win-titlebar-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .win-btns { display: flex; gap: 4px; }
+  .win-btn {
+    width: 24px; height: 24px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+    background: rgba(255,255,255,0.08);
+    color: var(--text);
+  }
+  .win-btn:hover { background: rgba(255,255,255,0.2); }
+  .win-btn.close-btn:hover { background: #c42b1c; }
+  .win-content {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  /* Resize handle */
+  .resize-handle {
+    position: absolute;
+    right: 0; bottom: 0;
+    width: 16px; height: 16px;
+    cursor: se-resize;
+  }
+  /* Context menu */
+  #context-menu {
+    position: absolute;
+    background: rgba(20,20,40,0.97);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    padding: 4px;
+    z-index: 99999;
+    display: none;
+    min-width: 180px;
+    box-shadow: var(--shadow);
+  }
+  .ctx-item {
+    padding: 7px 14px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .ctx-item:hover { background: var(--hover); }
+  .ctx-sep { height: 1px; background: rgba(255,255,255,0.1); margin: 4px 0; }
+
+  /* === APP STYLES === */
+
+  /* File Manager */
+  .fm-layout { display: flex; flex: 1; overflow: hidden; }
+  .fm-sidebar {
+    width: 160px;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--win-border);
+    padding: 8px;
+    flex-shrink: 0;
+    overflow-y: auto;
+  }
+  .fm-sidebar-item {
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .fm-sidebar-item:hover { background: var(--hover); }
+  .fm-sidebar-item.active { background: var(--selected); color: var(--accent); }
+  .fm-main { flex: 1; overflow: auto; padding: 8px; }
+  .fm-toolbar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--win-border);
+    background: var(--sidebar-bg);
+  }
+  .fm-toolbar button {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .fm-toolbar button:hover { background: var(--hover); }
+  .fm-path {
+    flex: 1;
+    background: var(--input-bg);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  .fm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 4px;
+    padding: 4px;
+  }
+  .fm-item {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 8px 4px;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s;
+    font-size: 11px;
+  }
+  .fm-item:hover { background: var(--hover); }
+  .fm-item.selected { background: var(--selected); outline: 1px solid var(--accent); }
+  .fm-item .fi-icon { font-size: 32px; }
+  .fm-item .fi-name { margin-top: 4px; word-break: break-word; }
+  .fm-status {
+    padding: 4px 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+    border-top: 1px solid var(--win-border);
+    background: var(--sidebar-bg);
+  }
+
+  /* Text Editor */
+  .editor-toolbar {
+    display: flex; gap: 4px; padding: 6px 8px;
+    border-bottom: 1px solid var(--win-border);
+    background: var(--sidebar-bg);
+    flex-wrap: wrap;
+  }
+  .editor-toolbar button {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 3px 8px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .editor-toolbar button:hover { background: var(--hover); }
+  textarea.editor-area {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    padding: 12px;
+    font-family: 'Consolas', monospace;
+    font-size: 13px;
+    resize: none;
+    outline: none;
+    line-height: 1.6;
+  }
+  .editor-status {
+    padding: 3px 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+    border-top: 1px solid var(--win-border);
+    background: var(--sidebar-bg);
+  }
+
+  /* Terminal */
+  .terminal-area {
+    flex: 1;
+    background: #0a0a14;
+    padding: 10px;
+    overflow-y: auto;
+    font-family: 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .terminal-line { color: #aaffaa; }
+  .terminal-line.err { color: #ff8888; }
+  .terminal-line.sys { color: #88aaff; }
+  .terminal-input-row {
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    background: #0a0a14;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    gap: 6px;
+  }
+  .terminal-prompt { color: #44ff88; font-family: 'Consolas', monospace; font-size: 13px; white-space: nowrap; }
+  .terminal-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #aaffaa;
+    font-family: 'Consolas', monospace;
+    font-size: 13px;
+    outline: none;
+  }
+
+  /* Settings */
+  .settings-layout { display: flex; flex: 1; overflow: hidden; }
+  .settings-sidebar {
+    width: 200px;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--win-border);
+    padding: 8px;
+    overflow-y: auto;
+  }
+  .settings-nav-item {
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex; align-items: center; gap: 10px;
+    transition: background 0.15s;
+  }
+  .settings-nav-item:hover { background: var(--hover); }
+  .settings-nav-item.active { background: rgba(0,120,212,0.3); color: var(--accent); }
+  .settings-main { flex: 1; overflow-y: auto; padding: 20px; }
+  .settings-section { margin-bottom: 28px; }
+  .settings-section h2 { font-size: 18px; margin-bottom: 16px; color: var(--text); }
+  .settings-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .settings-row-label { font-size: 14px; }
+  .settings-row-sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  /* Toggle */
+  .toggle {
+    width: 44px; height: 24px;
+    background: #444;
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle.on { background: var(--accent); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    background: #fff;
+    border-radius: 50%;
+    top: 3px; left: 3px;
+    transition: left 0.2s;
+  }
+  .toggle.on::after { left: 23px; }
+  input[type=range].settings-range {
+    -webkit-appearance: none;
+    width: 140px; height: 4px;
+    background: #444;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range].settings-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+  .color-swatch {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .color-swatch.selected { border-color: #fff; }
+  .color-row { display: flex; gap: 8px; }
+
+  /* Browser app */
+  .browser-bar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--win-border);
+    background: var(--sidebar-bg);
+  }
+  .browser-bar button {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    color: var(--text);
+    width: 28px; height: 28px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .browser-bar button:hover { background: var(--hover); }
+  .browser-url {
+    flex: 1;
+    background: var(--input-bg);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 5px 10px;
+    font-size: 13px;
+    outline: none;
+  }
+  .browser-url:focus { border-color: var(--accent); }
+  .browser-frame-wrap { flex: 1; overflow: hidden; position: relative; background: #fff; }
+  .browser-iframe { width: 100%; height: 100%; border: none; }
+  .browser-blocked {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; background: var(--win-bg); color: var(--text-dim);
+    gap: 12px; font-size: 14px; text-align: center; padding: 20px;
+  }
+  .browser-blocked .block-icon { font-size: 48px; }
+
+  /* Calculator */
+  .calc-wrap {
+    padding: 16px;
+    display: flex; flex-direction: column; gap: 10px;
+    max-width: 300px;
+  }
+  .calc-display {
+    background: var(--input-bg);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 12px;
+    text-align: right;
+  }
+  .calc-display .calc-expr { font-size: 12px; color: var(--text-dim); min-height: 16px; }
+  .calc-display .calc-val { font-size: 28px; }
+  .calc-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .calc-btn {
+    padding: 14px 0;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.07);
+    color: var(--text);
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .calc-btn:hover { background: var(--hover); }
+  .calc-btn.op { background: rgba(0,120,212,0.25); color: var(--accent); }
+  .calc-btn.eq { background: var(--accent); color: #fff; }
+  .calc-btn.eq:hover { background: var(--accent2); }
+  .calc-btn.wide { grid-column: span 2; }
+
+  /* Image Viewer */
+  .imgv-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .imgv-toolbar {
+    display: flex; gap: 6px; align-items: center;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--win-border);
+    background: var(--sidebar-bg);
+  }
+  .imgv-toolbar button {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    color: var(--text); padding: 4px 8px; font-size: 12px; cursor: pointer;
+  }
+  .imgv-main {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    overflow: hidden; background: #0a0a14;
+  }
+  .imgv-canvas { max-width: 100%; max-height: 100%; object-fit: contain; cursor: grab; }
+
+  /* Notepad placeholder */
+  .about-content { padding: 24px; font-size: 13px; line-height: 1.8; }
+  .about-content h1 { font-size: 22px; margin-bottom: 12px; }
+  .about-content .version { color: var(--accent); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div id="desktop"></div>
+<div id="taskbar">
+  <button id="start-btn" title="Start">⊞</button>
+  <div id="taskbar-apps"></div>
+  <div id="clock"></div>
+</div>
+
+<div id="start-menu">
+  <input id="start-search" type="text" placeholder="🔍 Search apps..." autocomplete="off">
+  <div class="start-section-label">Apps</div>
+  <div class="start-app-grid" id="start-app-grid"></div>
+</div>
+
+<div id="context-menu"></div>
+
+<script>
+// ============================================================
+// CORE OS STATE
+// ============================================================
+const OS = {
+  windows: {},
+  zIndex: 100,
+  activeWin: null,
+  settings: {
+    accent: '#0078d4',
+    wallpaper: 'linear-gradient(135deg, #0f0c29, #302b63, #24243e)',
+    fontSize: 13,
+    transparency: true,
+    darkMode: true,
+    taskbarPos: 'bottom',
+    showClock: true,
+  },
+  fs: null,    // filesystem
+  clipboard: null,
+};
+
+// ============================================================
+// BUNDLED .BEEP APPS
+// ============================================================
+const PAINT_BEEP_MAIN = [
+  "const COLORS=['#000000','#ffffff','#ff0000','#ff6600','#ffcc00','#00cc00','#0066ff','#9900cc','#ff66cc','#00cccc','#663300','#999999','#cccccc','#004499','#006600','#990000'];",
+  "const state={tool:'brush',color:'#000000',size:8,drawing:false,lastX:0,lastY:0,history:[],histPos:-1};",
+  "container.style.cssText='display:flex;flex-direction:column;overflow:hidden;height:100%';",
+  "const toolbar=document.createElement('div');",
+  "toolbar.style.cssText='display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--sidebar-bg);border-bottom:1px solid var(--win-border);flex-wrap:wrap;flex-shrink:0';",
+  "container.appendChild(toolbar);",
+  "const canvasWrap=document.createElement('div');",
+  "canvasWrap.style.cssText='flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;background:#2a2a2a';",
+  "container.appendChild(canvasWrap);",
+  "const statusBar=document.createElement('div');",
+  "statusBar.style.cssText='padding:3px 8px;font-size:11px;color:var(--text-dim);background:var(--sidebar-bg);border-top:1px solid var(--win-border);flex-shrink:0';",
+  "statusBar.textContent='Ready';",
+  "container.appendChild(statusBar);",
+  "const canvas=document.createElement('canvas');",
+  "canvas.width=800;canvas.height=500;",
+  "canvas.style.cssText='display:block;cursor:crosshair;box-shadow:0 4px 24px rgba(0,0,0,0.6)';",
+  "canvasWrap.appendChild(canvas);",
+  "const ctx=canvas.getContext('2d');",
+  "ctx.fillStyle='#ffffff';ctx.fillRect(0,0,800,500);",
+  "function mkBtn(text,title,style){const b=document.createElement('button');b.textContent=text;b.title=title||text;b.style.cssText=style||'width:28px;height:28px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.07);color:var(--text);cursor:pointer;font-size:14px';return b;}",
+  "const TOOLS=[{id:'brush',label:'\\u270f',title:'Brush'},{id:'eraser',label:'\\u25a1',title:'Eraser'},{id:'fill',label:'\\ud83e\\udea3',title:'Fill'},{id:'line',label:'/',title:'Line'},{id:'rect',label:'\\u25ad',title:'Rectangle'},{id:'circle',label:'\\u25cb',title:'Ellipse'},{id:'eyedropper',label:'\\ud83d\\udc89',title:'Eyedropper'}];",
+  "const toolsDiv=document.createElement('div');toolsDiv.style.cssText='display:flex;gap:3px';toolbar.appendChild(toolsDiv);",
+  "TOOLS.forEach(function(t){",
+  "  const btn=mkBtn(t.label,t.title);",
+  "  btn.onclick=function(){state.tool=t.id;toolsDiv.querySelectorAll('button').forEach(function(b){b.style.background='rgba(255,255,255,0.07)';});btn.style.background='rgba(0,120,212,0.4)';};",
+  "  if(t.id==='brush')btn.style.background='rgba(0,120,212,0.4)';",
+  "  toolsDiv.appendChild(btn);",
+  "});",
+  "const sep=function(){const d=document.createElement('div');d.style.cssText='width:1px;height:24px;background:rgba(255,255,255,0.1)';toolbar.appendChild(d);};",
+  "sep();",
+  "const sizeLabel=document.createElement('span');sizeLabel.textContent='Size';sizeLabel.style.cssText='font-size:11px;color:var(--text-dim)';toolbar.appendChild(sizeLabel);",
+  "const sizeSlider=document.createElement('input');sizeSlider.type='range';sizeSlider.min=1;sizeSlider.max=60;sizeSlider.value=8;sizeSlider.style.cssText='width:80px;height:4px;cursor:pointer';toolbar.appendChild(sizeSlider);",
+  "const sizeVal=document.createElement('span');sizeVal.textContent='8px';sizeVal.style.cssText='font-size:11px;color:var(--text-dim);width:24px';toolbar.appendChild(sizeVal);",
+  "sizeSlider.oninput=function(){state.size=parseInt(sizeSlider.value);sizeVal.textContent=state.size+'px';};",
+  "sep();",
+  "const paletteDiv=document.createElement('div');paletteDiv.style.cssText='display:flex;gap:2px;flex-wrap:wrap;max-width:180px';toolbar.appendChild(paletteDiv);",
+  "COLORS.forEach(function(c){const sw=document.createElement('div');sw.style.cssText='width:16px;height:16px;border-radius:2px;background:'+c+';cursor:pointer;border:1px solid rgba(255,255,255,0.15)';sw.onclick=function(){setColor(c);};paletteDiv.appendChild(sw);});",
+  "sep();",
+  "const picker=document.createElement('input');picker.type='color';picker.value='#000000';picker.style.cssText='width:28px;height:28px;border:none;background:none;cursor:pointer;padding:0';picker.oninput=function(){setColor(picker.value);};toolbar.appendChild(picker);",
+  "const curColor=document.createElement('div');curColor.style.cssText='width:28px;height:28px;border-radius:4px;border:2px solid rgba(255,255,255,0.3);background:#000000';toolbar.appendChild(curColor);",
+  "function setColor(c){state.color=c;curColor.style.background=c;picker.value=c;}",
+  "sep();",
+  "const clearBtn=mkBtn('Clear','Clear canvas','background:rgba(255,80,80,0.15);border:1px solid rgba(255,80,80,0.3);color:#ff8888;border-radius:4px;padding:3px 8px;font-size:12px;cursor:pointer');toolbar.appendChild(clearBtn);",
+  "clearBtn.onclick=function(){ctx.fillStyle='#ffffff';ctx.fillRect(0,0,800,500);snapshot();};",
+  "const undoBtn=mkBtn('Undo','','background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);color:var(--text);border-radius:4px;padding:3px 8px;font-size:12px;cursor:pointer');toolbar.appendChild(undoBtn);",
+  "const redoBtn=mkBtn('Redo','','background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);color:var(--text);border-radius:4px;padding:3px 8px;font-size:12px;cursor:pointer');toolbar.appendChild(redoBtn);",
+  "const saveBtn=mkBtn('Save PNG','Save to /Pictures','background:rgba(0,120,212,0.2);border:1px solid rgba(0,120,212,0.4);color:#66aaff;border-radius:4px;padding:3px 8px;font-size:12px;cursor:pointer');toolbar.appendChild(saveBtn);",
+  "function snapshot(){state.history=state.history.slice(0,state.histPos+1);state.history.push(canvas.toDataURL());state.histPos=state.history.length-1;if(state.history.length>40){state.history.shift();state.histPos--;}}",
+  "function restore(d){var img=new Image();img.src=d;img.onload=function(){ctx.clearRect(0,0,800,500);ctx.drawImage(img,0,0);};}",
+  "snapshot();",
+  "undoBtn.onclick=function(){if(state.histPos>0){state.histPos--;restore(state.history[state.histPos]);}};",
+  "redoBtn.onclick=function(){if(state.histPos<state.history.length-1){state.histPos++;restore(state.history[state.histPos]);}};",
+  "saveBtn.onclick=function(){var n=prompt('Save as (in /Pictures/:','drawing.png');if(!n)return;BOS.fs.touch('/Pictures/'+n,canvas.toDataURL('image/png'));BOS.notify('Saved to /Pictures/'+n);};",
+  "function hexToRgb(h){return[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}",
+  "function getPixel(x,y){var d=ctx.getImageData(x,y,1,1).data;return'#'+[d[0],d[1],d[2]].map(function(v){return v.toString(16).padStart(2,'0');}).join('');}",
+  "function floodFill(x,y,fc){var id=ctx.getImageData(0,0,800,500),d=id.data;function idx(x,y){return(y*800+x)*4;}var ti=idx(x,y),tr=[d[ti],d[ti+1],d[ti+2]],fc2=hexToRgb(fc);if(tr[0]===fc2[0]&&tr[1]===fc2[1]&&tr[2]===fc2[2])return;var stack=[[x,y]];while(stack.length){var p=stack.pop(),cx=p[0],cy=p[1];if(cx<0||cx>=800||cy<0||cy>=500)continue;var i=idx(cx,cy);if(d[i]!==tr[0]||d[i+1]!==tr[1]||d[i+2]!==tr[2])continue;d[i]=fc2[0];d[i+1]=fc2[1];d[i+2]=fc2[2];d[i+3]=255;stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);}ctx.putImageData(id,0,0);}",
+  "function getPos(e){var r=canvas.getBoundingClientRect();return{x:Math.round(e.clientX-r.left),y:Math.round(e.clientY-r.top)};}",
+  "var shapeStart=null,shapeSnap=null;",
+  "canvas.addEventListener('mousedown',function(e){var p=getPos(e);if(state.tool==='eyedropper'){setColor(getPixel(p.x,p.y));return;}if(state.tool==='fill'){snapshot();floodFill(p.x,p.y,state.color);snapshot();return;}state.drawing=true;state.lastX=p.x;state.lastY=p.y;shapeStart=p;shapeSnap=canvas.toDataURL();if(state.tool==='brush'||state.tool==='eraser'){ctx.beginPath();ctx.arc(p.x,p.y,state.size/2,0,Math.PI*2);ctx.fillStyle=state.tool==='eraser'?'#ffffff':state.color;ctx.fill();}});",
+  "canvas.addEventListener('mousemove',function(e){var p=getPos(e);statusBar.textContent=state.tool+' x:'+p.x+' y:'+p.y+' size:'+state.size+'px';if(!state.drawing)return;if(state.tool==='brush'||state.tool==='eraser'){ctx.beginPath();ctx.moveTo(state.lastX,state.lastY);ctx.lineTo(p.x,p.y);ctx.strokeStyle=state.tool==='eraser'?'#ffffff':state.color;ctx.lineWidth=state.size;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();ctx.beginPath();ctx.arc(p.x,p.y,state.size/2,0,Math.PI*2);ctx.fillStyle=state.tool==='eraser'?'#ffffff':state.color;ctx.fill();state.lastX=p.x;state.lastY=p.y;}else{var img=new Image();img.src=shapeSnap;img.onload=function(){ctx.clearRect(0,0,800,500);ctx.drawImage(img,0,0);ctx.strokeStyle=state.color;ctx.lineWidth=state.size;ctx.lineCap='round';if(state.tool==='line'){ctx.beginPath();ctx.moveTo(shapeStart.x,shapeStart.y);ctx.lineTo(p.x,p.y);ctx.stroke();}else if(state.tool==='rect'){ctx.strokeRect(shapeStart.x,shapeStart.y,p.x-shapeStart.x,p.y-shapeStart.y);}else if(state.tool==='circle'){var rx=(p.x-shapeStart.x)/2,ry=(p.y-shapeStart.y)/2;ctx.beginPath();ctx.ellipse(shapeStart.x+rx,shapeStart.y+ry,Math.abs(rx),Math.abs(ry),0,0,Math.PI*2);ctx.stroke();}};}});",
+  "canvas.addEventListener('mouseup',function(){if(!state.drawing)return;state.drawing=false;snapshot();});",
+  "canvas.addEventListener('mouseleave',function(){if(state.drawing){state.drawing=false;snapshot();}});",
+  "document.addEventListener('keydown',function ptKeys(e){if(!container.isConnected){document.removeEventListener('keydown',ptKeys);return;}if(e.ctrlKey&&e.key==='z'){undoBtn.click();e.preventDefault();}if(e.ctrlKey&&e.key==='y'){redoBtn.click();e.preventDefault();}});",
+  "BOS.onContextMenu(function(x,y){",
+  "  BOS.showContextMenu(x,y,[",
+  "    {label:'✏️ Brush',action:function(){toolsDiv.querySelectorAll('button')[0].click();}},",
+  "    {label:'⬜ Eraser',action:function(){toolsDiv.querySelectorAll('button')[1].click();}},",
+  "    {label:'🪣 Fill',action:function(){toolsDiv.querySelectorAll('button')[2].click();}},",
+  "    {label:'╱ Line',action:function(){toolsDiv.querySelectorAll('button')[3].click();}},",
+  "    {label:'▭ Rectangle',action:function(){toolsDiv.querySelectorAll('button')[4].click();}},",
+  "    {label:'○ Ellipse',action:function(){toolsDiv.querySelectorAll('button')[5].click();}},",
+  "    'sep',",
+  "    {label:'↩ Undo',action:function(){undoBtn.click();}},",
+  "    {label:'↪ Redo',action:function(){redoBtn.click();}},",
+  "    {label:'🗑️ Clear Canvas',action:function(){clearBtn.click();}},",
+  "    'sep',",
+  "    {label:'💾 Save PNG',action:function(){saveBtn.click();}},",
+  "  ]);",
+  "});"
+].join("\n");
+
+const PAINT_BEEP = JSON.stringify({
+  name: "Paint", version: "1.0", icon: "\uD83C\uDFA8", author: "BrowserOS",
+  width: 820, height: 560, main: PAINT_BEEP_MAIN
+});
+
+const CALCULATOR_BEEP = JSON.stringify({
+  name: "Calculator", version: "1.0", icon: "\uD83E\uDDEE", author: "BrowserOS",
+  width: 320, height: 440,
+  main: [
+    "var expr='',val='0',justCalc=false;",
+    "container.style.cssText='display:flex;flex-direction:column;align-items:center;padding:16px;gap:10px;overflow:hidden;background:var(--win-bg)';",
+    "var disp=document.createElement('div');disp.style.cssText='width:100%;background:var(--input-bg);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:12px;text-align:right';",
+    "var exprEl=document.createElement('div');exprEl.style.cssText='font-size:12px;color:var(--text-dim);min-height:16px';",
+    "var valEl=document.createElement('div');valEl.style.cssText='font-size:28px;color:var(--text)';valEl.textContent='0';",
+    "disp.appendChild(exprEl);disp.appendChild(valEl);container.appendChild(disp);",
+    "var grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%';container.appendChild(grid);",
+    "var BTNS=[{l:'C',t:'clear'},{l:'\u00b1',t:'sign'},{l:'%',t:'pct'},{l:'\u00f7',t:'op',v:'/'},{l:'7',t:'num'},{l:'8',t:'num'},{l:'9',t:'num'},{l:'\u00d7',t:'op',v:'*'},{l:'4',t:'num'},{l:'5',t:'num'},{l:'6',t:'num'},{l:'\u2212',t:'op',v:'-'},{l:'1',t:'num'},{l:'2',t:'num'},{l:'3',t:'num'},{l:'+',t:'op',v:'+'},{l:'0',t:'num',w:true},{l:'.',t:'dot'},{l:'=',t:'eq'}];",
+    "function upd(){exprEl.textContent=expr;valEl.textContent=val;}",
+    "function press(b){",
+    "  if(b.t==='clear'){expr='';val='0';justCalc=false;}",
+    "  else if(b.t==='num'){if(justCalc){val=b.l;expr='';justCalc=false;}else{val=(val==='0'?b.l:val+b.l);}}",
+    "  else if(b.t==='dot'){if(!val.includes('.'))val+='.';} ",
+    "  else if(b.t==='op'){justCalc=false;expr=val+' '+b.l+' ';val='0';}",
+    "  else if(b.t==='sign'){val=String(-parseFloat(val)||0);}",
+    "  else if(b.t==='pct'){val=String(parseFloat(val)/100);}",
+    "  else if(b.t==='eq'){try{var e=expr.replace('\u00d7','*').replace('\u00f7','/').replace('\u2212','-')+val;var r=Function('\"use strict\";return ('+e+')')();expr=e+' =';val=String(Math.round(r*1e10)/1e10);justCalc=true;}catch(e){val='Error';}}",
+    "  upd();",
+    "}",
+    "BTNS.forEach(function(b){",
+    "  var btn=document.createElement('button');",
+    "  btn.textContent=b.l;",
+    "  btn.style.cssText='padding:14px 0;border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;font-size:15px;color:var(--text);transition:background 0.1s;'+(b.t==='op'?'background:rgba(0,120,212,0.25);color:var(--accent);':b.t==='eq'?'background:var(--accent);color:#fff;':'background:rgba(255,255,255,0.07);')+(b.w?'grid-column:span 2;':'');",
+    "  if(b.w)btn.style.gridColumn='span 2';",
+    "  btn.onclick=function(){press(b);};",
+    "  grid.appendChild(btn);",
+    "});",
+    "document.addEventListener('keydown',function ck(e){if(!container.isConnected){document.removeEventListener('keydown',ck);return;}var m={'0':'0','1':'1','2':'2','3':'3','4':'4','5':'5','6':'6','7':'7','8':'8','9':'9','+':'+','-':'-','*':'*','/':'/','Enter':'=','Escape':'C','.':'.'};var v=m[e.key];if(v){var b=BTNS.find(function(b){return b.l===v||b.v===v||(v==='='&&b.t==='eq')||(v==='C'&&b.t==='clear');});if(b)press(b);}});",
+    "BOS.onContextMenu(function(x,y){BOS.showContextMenu(x,y,[{label:'🗑️ Clear',action:function(){press({t:'clear'});}},{label:'± Toggle sign',action:function(){press({t:'sign'});}},{label:'% Percent',action:function(){press({t:'pct'});}}]);});"
+  ].join("\n")
+});
+
+const ABOUT_BEEP = JSON.stringify({
+  name: "About BrowserOS", version: "1.0", icon: "\u2139\uFE0F", author: "BrowserOS",
+  width: 460, height: 340,
+  main: [
+    "container.style.cssText='padding:24px;font-size:13px;line-height:1.8;overflow:auto;color:var(--text)';",
+    "container.innerHTML='<h1 style=\"font-size:22px;margin-bottom:8px\">🖥️ BrowserOS</h1>'",
+    "  +'<div style=\"color:var(--accent);font-size:13px;margin-bottom:14px\">Version 1.0.0 &mdash; Built with HTML5 &amp; Vanilla JS</div>'",
+    "  +'<p>A fully functional operating system running in your browser.</p>'",
+    "  +'<p style=\"margin-top:10px\"><b>Features:</b><br>'",
+    "  +'&bull; Real filesystem (localStorage-backed)<br>'",
+    "  +'&bull; Draggable, resizable windows<br>'",
+    "  +'&bull; File Manager, Text Editor, Terminal<br>'",
+    "  +'&bull; Calculator, Browser, Paint<br>'",
+    "  +'&bull; .beep executable format<br>'",
+    "  +'&bull; App-specific right-click menus<br>'",
+    "  +'&bull; Settings with live theme changes<br>'",
+    "  +'&bull; Start menu, desktop icons, DnD</p>'",
+    "  +'<p style=\"margin-top:14px;color:var(--text-dim);font-size:12px\">Right-click for options.</p>';"
+  ].join("\n")
+});
+
+const BROWSER_BEEP = JSON.stringify({
+  name: "Browser", version: "1.0", icon: "\uD83C\uDF10", author: "BrowserOS",
+  width: 800, height: 520,
+  main: [
+    "container.style.cssText='display:flex;flex-direction:column;overflow:hidden;height:100%';",
+    "var bar=document.createElement('div');bar.style.cssText='display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--sidebar-bg);border-bottom:1px solid var(--win-border);flex-shrink:0';container.appendChild(bar);",
+    "function mkBtn(t){var b=document.createElement('button');b.textContent=t;b.style.cssText='background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:var(--text);width:28px;height:28px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center';return b;}",
+    "var backBtn=mkBtn('\u25c0');var fwdBtn=mkBtn('\u25b6');var reloadBtn=mkBtn('\u27f3');",
+    "var urlInput=document.createElement('input');urlInput.placeholder='Enter URL and press Enter...';urlInput.style.cssText='flex:1;background:var(--input-bg);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:var(--text);padding:5px 10px;font-size:13px;outline:none';",
+    "var goBtn=mkBtn('\u2192');goBtn.style.width='auto';goBtn.style.padding='0 10px';goBtn.textContent='Go';",
+    "bar.appendChild(backBtn);bar.appendChild(fwdBtn);bar.appendChild(reloadBtn);bar.appendChild(urlInput);bar.appendChild(goBtn);",
+    "var wrap=document.createElement('div');wrap.style.cssText='flex:1;overflow:hidden;position:relative;background:#fff';container.appendChild(wrap);",
+    "var home=document.createElement('div');home.style.cssText='display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;background:var(--win-bg);color:var(--text-dim);gap:12px;font-size:14px;text-align:center;padding:20px';home.innerHTML='<div style=\"font-size:48px\">\uD83C\uDF10</div><div>Enter a URL to browse</div><div style=\"font-size:11px;color:#555;max-width:280px\">Most sites block iframe embedding. Try: <b>wikipedia.org</b>, <b>example.com</b></div>';wrap.appendChild(home);",
+    "var iframe=null;",
+    "function navigate(u){if(!u)return;if(!u.startsWith('http'))u='https://'+u;urlInput.value=u;wrap.innerHTML='';iframe=document.createElement('iframe');iframe.style.cssText='width:100%;height:100%;border:none';iframe.src=u;iframe.sandbox='allow-scripts allow-same-origin allow-forms allow-popups';wrap.appendChild(iframe);}",
+    "urlInput.addEventListener('keydown',function(e){if(e.key==='Enter')navigate(urlInput.value.trim());});",
+    "goBtn.onclick=function(){navigate(urlInput.value.trim());};",
+    "backBtn.onclick=function(){try{iframe&&iframe.contentWindow.history.back();}catch(e){}};",
+    "fwdBtn.onclick=function(){try{iframe&&iframe.contentWindow.history.forward();}catch(e){}};",
+    "reloadBtn.onclick=function(){if(iframe)iframe.src=iframe.src;};",
+    "BOS.onContextMenu(function(x,y){BOS.showContextMenu(x,y,[{label:'\uD83C\uDF10 Navigate to...',action:function(){var u=prompt('URL:');if(u)navigate(u);}},{label:'\u27f3 Reload',action:function(){reloadBtn.click();}},{label:'\u25c0 Back',action:function(){backBtn.click();}},{label:'\u25b6 Forward',action:function(){fwdBtn.click();}}]);});"
+  ].join("\n")
+});
+
+// ============================================================
+// FILESYSTEM
+// ============================================================
+class FileSystem {
+  constructor() {
+    const saved = localStorage.getItem('bos_fs');
+    if (saved) {
+      this.root = JSON.parse(saved);
+    } else {
+      this.root = {
+        '/': { type: 'dir', children: {
+          'Desktop': { type: 'dir', children: {} },
+          'Documents': { type: 'dir', children: {
+            'Welcome.txt': { type: 'file', content: 'Welcome to BrowserOS!\n\nThis is a fully functional browser-based operating system.\n\nFeatures:\n- File Manager with real filesystem (stored in localStorage)\n- Text Editor with file saving\n- Terminal with real commands\n- Calculator\n- Settings (changes accent color, wallpaper, font size)\n- Browser (opens websites in iframe)\n\nHave fun!', size: 0 },
+            'Notes.txt': { type: 'file', content: 'My Notes\n========\n\nTodo:\n- [ ] Try the terminal\n- [ ] Change wallpaper in Settings\n- [ ] Create a new file', size: 0 },
+          }},
+          'Pictures': { type: 'dir', children: {
+            'placeholder.png': { type: 'file', content: '__image__', size: 1024, mime: 'image/png' },
+          }},
+          'Downloads': { type: 'dir', children: {} },
+          'Music': { type: 'dir', children: {} },
+          'Apps': { type: 'dir', children: {
+            'paint.beep':      { type: 'file', size: 0, content: '__PAINT_BEEP__' },
+            'calculator.beep': { type: 'file', size: 0, content: '__CALC_BEEP__' },
+            'about.beep':      { type: 'file', size: 0, content: '__ABOUT_BEEP__' },
+            'browser.beep':    { type: 'file', size: 0, content: '__BROWSER_BEEP__' },
+          }},
+        }}
+      };
+      this.save();
+    }
+  }
+  save() {
+    try { localStorage.setItem('bos_fs', JSON.stringify(this.root)); } catch(e){}
+  }
+  resolve(path) {
+    const parts = path.replace(/\/+/g,'/').split('/').filter(Boolean);
+    let node = this.root['/'];
+    for (const p of parts) {
+      if (!node || node.type !== 'dir') return null;
+      node = node.children[p];
+    }
+    return node || null;
+  }
+  resolveParent(path) {
+    const parts = path.replace(/\/+/g,'/').split('/').filter(Boolean);
+    const name = parts.pop();
+    let node = this.root['/'];
+    for (const p of parts) {
+      if (!node || node.type !== 'dir') return null;
+      node = node.children[p];
+    }
+    return { parent: node, name };
+  }
+  ls(path) {
+    const node = this.resolve(path);
+    if (!node || node.type !== 'dir') return null;
+    return Object.entries(node.children).map(([name, n]) => ({ name, ...n }));
+  }
+  mkdir(path) {
+    const { parent, name } = this.resolveParent(path);
+    if (!parent) return false;
+    parent.children[name] = { type: 'dir', children: {} };
+    this.save(); return true;
+  }
+  touch(path, content = '') {
+    const { parent, name } = this.resolveParent(path);
+    if (!parent) return false;
+    parent.children[name] = { type: 'file', content, size: content.length };
+    this.save(); return true;
+  }
+  rm(path) {
+    const { parent, name } = this.resolveParent(path);
+    if (!parent || !parent.children[name]) return false;
+    delete parent.children[name];
+    this.save(); return true;
+  }
+  write(path, content) {
+    const node = this.resolve(path);
+    if (!node || node.type !== 'file') return false;
+    node.content = content;
+    node.size = content.length;
+    this.save(); return true;
+  }
+  rename(path, newName) {
+    const { parent, name } = this.resolveParent(path);
+    if (!parent || !parent.children[name]) return false;
+    parent.children[newName] = parent.children[name];
+    delete parent.children[name];
+    this.save(); return true;
+  }
+}
+OS.fs = new FileSystem();
+
+// Replace placeholders in fresh installs, and migrate existing ones
+(function migrate() {
+  if (!OS.fs.resolve('/Apps')) OS.fs.mkdir('/Apps');
+  const installs = [
+    { path: '/Apps/paint.beep',      content: PAINT_BEEP },
+    { path: '/Apps/calculator.beep', content: CALCULATOR_BEEP },
+    { path: '/Apps/about.beep',      content: ABOUT_BEEP },
+    { path: '/Apps/browser.beep',    content: BROWSER_BEEP },
+  ];
+  installs.forEach(function(a) {
+    const node = OS.fs.resolve(a.path);
+    if (!node || node.content.startsWith('__')) OS.fs.touch(a.path, a.content);
+  });
+})();
+
+// ============================================================
+// WINDOW MANAGER
+// ============================================================
+function createWindow(opts) {
+  const id = 'win_' + Date.now() + Math.random().toString(36).slice(2,6);
+  const el = document.createElement('div');
+  el.className = 'window';
+  el.id = id;
+  el.style.cssText = `left:${opts.x||80}px;top:${opts.y||60}px;width:${opts.w||700}px;height:${opts.h||500}px;z-index:${++OS.zIndex}`;
+
+  el.innerHTML = `
+    <div class="titlebar" data-winid="${id}">
+      <span class="win-icon">${opts.icon||'🪟'}</span>
+      <span class="win-title">${opts.title||'Window'}</span>
+      <div class="win-btns">
+        <button class="win-btn min-btn" title="Minimize">─</button>
+        <button class="win-btn max-btn" title="Maximize">□</button>
+        <button class="win-btn close-btn" title="Close">✕</button>
+      </div>
+    </div>
+    <div class="win-content" id="wc_${id}"></div>
+    <div class="resize-handle" data-winid="${id}"></div>
+  `;
+  document.getElementById('desktop').appendChild(el);
+
+  OS.windows[id] = { el, opts, minimized: false, maximized: false, prevRect: null };
+
+  // Titlebar drag
+  const tb = el.querySelector('.titlebar');
+  makeDraggable(el, tb);
+
+  // Resize
+  makeResizable(el, el.querySelector('.resize-handle'));
+
+  // Focus on click
+  el.addEventListener('mousedown', () => focusWindow(id));
+
+  // Buttons
+  el.querySelector('.min-btn').onclick = (e) => { e.stopPropagation(); minimizeWindow(id); };
+  el.querySelector('.max-btn').onclick = (e) => { e.stopPropagation(); toggleMaximize(id); };
+  el.querySelector('.close-btn').onclick = (e) => { e.stopPropagation(); closeWindow(id); };
+
+  // Double click titlebar = maximize
+  tb.ondblclick = () => toggleMaximize(id);
+
+  focusWindow(id);
+  addTaskbarBtn(id, opts);
+
+  // Mount content
+  const content = document.getElementById('wc_' + id);
+  if (opts.mount) opts.mount(content, id);
+
+  return id;
+}
+
+function focusWindow(id) {
+  const w = OS.windows[id];
+  if (!w) return;
+  OS.activeWin = id;
+  w.el.style.zIndex = ++OS.zIndex;
+  document.querySelectorAll('.window').forEach(el => el.style.outline = '');
+  w.el.style.outline = '1px solid rgba(0,120,212,0.5)';
+  // Update taskbar buttons
+  document.querySelectorAll('.taskbar-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.winid === id);
+  });
+}
+
+function minimizeWindow(id) {
+  const w = OS.windows[id];
+  if (!w) return;
+  w.minimized = !w.minimized;
+  w.el.classList.toggle('minimized', w.minimized);
+  const btn = document.querySelector(`.taskbar-btn[data-winid="${id}"]`);
+  if (btn) btn.classList.toggle('active', !w.minimized);
+}
+
+function toggleMaximize(id) {
+  const w = OS.windows[id];
+  if (!w) return;
+  if (!w.maximized) {
+    w.prevRect = { left: w.el.style.left, top: w.el.style.top, width: w.el.style.width, height: w.el.style.height };
+    w.maximized = true;
+    w.el.classList.add('maximized');
+  } else {
+    w.maximized = false;
+    w.el.classList.remove('maximized');
+    if (w.prevRect) {
+      w.el.style.left = w.prevRect.left;
+      w.el.style.top = w.prevRect.top;
+      w.el.style.width = w.prevRect.width;
+      w.el.style.height = w.prevRect.height;
+    }
+  }
+}
+
+function closeWindow(id) {
+  const w = OS.windows[id];
+  if (!w) return;
+  w.el.remove();
+  delete OS.windows[id];
+  const btn = document.querySelector(`.taskbar-btn[data-winid="${id}"]`);
+  if (btn) btn.remove();
+}
+
+function addTaskbarBtn(id, opts) {
+  const btn = document.createElement('button');
+  btn.className = 'taskbar-btn active';
+  btn.dataset.winid = id;
+  btn.innerHTML = `${opts.icon||'🪟'} <span>${opts.title||'Window'}</span>`;
+  btn.onclick = () => {
+    const w = OS.windows[id];
+    if (!w) return;
+    if (w.minimized) { minimizeWindow(id); focusWindow(id); }
+    else if (OS.activeWin === id) minimizeWindow(id);
+    else { focusWindow(id); if (w.minimized) minimizeWindow(id); }
+  };
+  document.getElementById('taskbar-apps').appendChild(btn);
+}
+
+// ============================================================
+// DRAG & RESIZE
+// ============================================================
+function makeDraggable(win, handle) {
+  let sx, sy, sl, st;
+  handle.addEventListener('mousedown', e => {
+    if (e.target.closest('.win-btns')) return;
+    const w = OS.windows[win.id];
+    if (w && w.maximized) return;
+    sx = e.clientX; sy = e.clientY;
+    sl = parseInt(win.style.left)||0;
+    st = parseInt(win.style.top)||0;
+    const onMove = e2 => {
+      win.style.left = Math.max(0, sl + e2.clientX - sx) + 'px';
+      win.style.top = Math.max(0, st + e2.clientY - sy) + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    e.preventDefault();
+  });
+}
+
+function makeResizable(win, handle) {
+  handle.addEventListener('mousedown', e => {
+    const startX = e.clientX, startY = e.clientY;
+    const startW = win.offsetWidth, startH = win.offsetHeight;
+    const onMove = e2 => {
+      win.style.width = Math.max(300, startW + e2.clientX - startX) + 'px';
+      win.style.height = Math.max(200, startH + e2.clientY - startY) + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    e.preventDefault();
+    e.stopPropagation();
+  });
+}
+
+// ============================================================
+// APPS REGISTRY
+// ============================================================
+const APPS = {
+  filemanager: { title: 'File Manager', icon: '📁', w: 720, h: 480, mount: mountFileManager },
+  texteditor:  { title: 'Text Editor',  icon: '📝', w: 640, h: 480, mount: mountTextEditor },
+  terminal:    { title: 'Terminal',     icon: '⌨️',  w: 620, h: 400, mount: mountTerminal },
+  settings:    { title: 'Settings',     icon: '⚙️',  w: 700, h: 500, mount: mountSettings },
+};
+
+function openApp(appId, extraOpts) {
+  const app = APPS[appId];
+  if (!app) return;
+  const offset = Object.keys(OS.windows).length * 22;
+  createWindow({ ...app, x: 80+offset, y: 60+offset, ...(extraOpts||{}) });
+}
+
+// ============================================================
+// FILE MANAGER APP
+// ============================================================
+function mountFileManager(container, winId, startPath) {
+  let cwd = startPath || '/';
+  let selected = null;
+
+  container.innerHTML = `
+    <div class="fm-toolbar">
+      <button id="fm-back-${winId}">◀</button>
+      <button id="fm-up-${winId}">▲</button>
+      <input class="fm-path" id="fm-path-${winId}" value="/" readonly>
+      <button id="fm-new-folder-${winId}">+ Folder</button>
+      <button id="fm-new-file-${winId}">+ File</button>
+      <button id="fm-import-${winId}" title="Import files from your computer" style="background:rgba(0,120,212,0.2);border-color:rgba(0,120,212,0.4);color:#66aaff">⬆ Import</button>
+      <button id="fm-refresh-${winId}">⟳</button>
+    </div>
+    <input type="file" id="fm-fileinput-${winId}" multiple style="display:none">
+    <div class="fm-layout">
+      <div class="fm-sidebar" id="fm-sidebar-${winId}"></div>
+      <div class="fm-main">
+        <div class="fm-grid" id="fm-grid-${winId}"></div>
+      </div>
+    </div>
+    <div class="fm-status" id="fm-status-${winId}">Ready</div>
+  `;
+
+  const history = ['/'];
+  let histIdx = 0;
+
+  const sidebar_items = [
+    { label: '🏠 Home', path: '/' },
+    { label: '🖥️ Desktop', path: '/Desktop' },
+    { label: '📄 Documents', path: '/Documents' },
+    { label: '🖼️ Pictures', path: '/Pictures' },
+    { label: '⬇️ Downloads', path: '/Downloads' },
+    { label: '🎵 Music', path: '/Music' },
+  ];
+
+  function renderSidebar() {
+    const sb = document.getElementById('fm-sidebar-' + winId);
+    sb.innerHTML = sidebar_items.map(s => `
+      <div class="fm-sidebar-item ${cwd===s.path?'active':''}" data-path="${s.path}">${s.label}</div>
+    `).join('');
+    sb.querySelectorAll('.fm-sidebar-item').forEach(el => {
+      el.onclick = () => navigate(el.dataset.path);
+    });
+  }
+
+  function navigate(path) {
+    cwd = path;
+    histIdx = history.length;
+    history.push(path);
+    render();
+  }
+
+  function render() {
+    document.getElementById('fm-path-' + winId).value = cwd || '/';
+    const items = OS.fs.ls(cwd);
+    const grid = document.getElementById('fm-grid-' + winId);
+    selected = null;
+    if (!items) { grid.innerHTML = '<div style="padding:16px;color:var(--text-dim)">Cannot read directory</div>'; return; }
+
+    grid.innerHTML = items.map(item => `
+      <div class="fm-item" data-name="${item.name}" data-type="${item.type}">
+        <span class="fi-icon">${item.type==='dir'?'📁':getFileIcon(item.name)}</span>
+        <span class="fi-name">${item.name}</span>
+      </div>
+    `).join('');
+
+    grid.querySelectorAll('.fm-item').forEach(el => {
+      el.onclick = () => {
+        grid.querySelectorAll('.fm-item').forEach(i => i.classList.remove('selected'));
+        el.classList.add('selected');
+        selected = el.dataset.name;
+        document.getElementById('fm-status-' + winId).textContent = selected;
+      };
+      el.ondblclick = () => {
+        const name = el.dataset.name;
+        const type = el.dataset.type;
+        if (type === 'dir') {
+          navigate(cwd.replace(/\/$/,'') + '/' + name);
+        } else {
+          openFileWith(cwd.replace(/\/$/,'') + '/' + name, name);
+        }
+      };
+      el.oncontextmenu = e => {
+        e.preventDefault();
+        showCtxMenu(e.clientX, e.clientY, [
+          { label: '📂 Open', action: () => {
+            if (el.dataset.type === 'dir') navigate(cwd.replace(/\/$/,'') + '/' + el.dataset.name);
+            else openFileWith(cwd.replace(/\/$/,'') + '/' + el.dataset.name, el.dataset.name);
+          }},
+          { label: '✏️ Rename', action: () => {
+            const nn = prompt('New name:', el.dataset.name);
+            if (nn && nn !== el.dataset.name) {
+              OS.fs.rename(cwd.replace(/\/$/,'') + '/' + el.dataset.name, nn);
+              render();
+            }
+          }},
+          { label: '🗑️ Delete', action: () => {
+            if (confirm('Delete "' + el.dataset.name + '"?')) {
+              OS.fs.rm(cwd.replace(/\/$/,'') + '/' + el.dataset.name);
+              render();
+            }
+          }},
+        ]);
+      };
+    });
+
+    renderSidebar();
+    const count = items.length;
+    document.getElementById('fm-status-' + winId).textContent = `${count} item${count!==1?'s':''}`;
+  }
+
+  document.getElementById('fm-back-' + winId).onclick = () => {
+    if (histIdx > 0) { histIdx--; cwd = history[histIdx]; render(); }
+  };
+  document.getElementById('fm-up-' + winId).onclick = () => {
+    if (cwd === '/') return;
+    const parts = cwd.split('/').filter(Boolean);
+    parts.pop();
+    navigate('/' + parts.join('/'));
+  };
+  document.getElementById('fm-new-folder-' + winId).onclick = () => {
+    const name = prompt('Folder name:');
+    if (name) { OS.fs.mkdir(cwd.replace(/\/$/,'') + '/' + name); render(); }
+  };
+  document.getElementById('fm-new-file-' + winId).onclick = () => {
+    const name = prompt('File name:');
+    if (name) { OS.fs.touch(cwd.replace(/\/$/,'') + '/' + name, ''); render(); }
+  };
+  document.getElementById('fm-refresh-' + winId).onclick = render;
+
+  // Import from host OS
+  const fileInput = document.getElementById('fm-fileinput-' + winId);
+  document.getElementById('fm-import-' + winId).onclick = () => fileInput.click();
+  fileInput.onchange = () => {
+    const files = Array.from(fileInput.files);
+    if (!files.length) return;
+    let done = 0;
+    const status = document.getElementById('fm-status-' + winId);
+    status.textContent = 'Importing ' + files.length + ' file(s)...';
+    files.forEach(file => {
+      const reader = new FileReader();
+      const isText = file.type.startsWith('text/') || /\.(txt|md|js|json|html|css|csv|xml|svg|beep)$/i.test(file.name);
+      reader.onload = e => {
+        const content = e.target.result;
+        const destPath = cwd.replace(/\/$/, '') + '/' + file.name;
+        OS.fs.touch(destPath, content);
+        done++;
+        if (done === files.length) {
+          render();
+          status.textContent = 'Imported ' + done + ' file(s) into ' + cwd;
+        }
+      };
+      if (isText) reader.readAsText(file);
+      else reader.readAsDataURL(file);
+    });
+    fileInput.value = ''; // reset so same file can be re-imported
+  };
+
+  // Drag-and-drop from host OS onto File Manager
+  const fmMain = container.querySelector('.fm-main');
+  fmMain.addEventListener('dragover', e => {
+    e.preventDefault();
+    fmMain.style.outline = '2px dashed var(--accent)';
+    fmMain.style.background = 'rgba(0,120,212,0.08)';
+  });
+  fmMain.addEventListener('dragleave', () => {
+    fmMain.style.outline = '';
+    fmMain.style.background = '';
+  });
+  fmMain.addEventListener('drop', e => {
+    e.preventDefault();
+    fmMain.style.outline = '';
+    fmMain.style.background = '';
+    const files = Array.from(e.dataTransfer.files);
+    if (!files.length) return;
+    const status = document.getElementById('fm-status-' + winId);
+    let done = 0;
+    status.textContent = 'Importing ' + files.length + ' file(s)...';
+    files.forEach(file => {
+      const reader = new FileReader();
+      const isText = file.type.startsWith('text/') || /\.(txt|md|js|json|html|css|csv|xml|svg|beep)$/i.test(file.name);
+      reader.onload = e2 => {
+        OS.fs.touch(cwd.replace(/\/$/, '') + '/' + file.name, e2.target.result);
+        done++;
+        if (done === files.length) { render(); status.textContent = 'Imported ' + done + ' file(s)'; }
+      };
+      if (isText) reader.readAsText(file);
+      else reader.readAsDataURL(file);
+    });
+  });
+
+  render();
+}
+
+function getFileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const map = { txt:'📄', md:'📄', js:'📜', html:'🌐', css:'🎨', json:'📋', png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', mp3:'🎵', mp4:'🎬', pdf:'📕', zip:'📦', beep:'⚡' };
+  return map[ext] || '📄';
+}
+
+function openFileWith(path, name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const node = OS.fs.resolve(path);
+  if (!node) return;
+  // Directories — open File Manager scoped to that path
+  if (node.type === 'dir') {
+    openApp('filemanager', { title: name, icon: '📁', mount: (c, wid) => mountFileManager(c, wid, path) });
+    return;
+  }
+  if (ext === 'beep') {
+    launchBeep(node.content, path);
+    return;
+  }
+  if (['txt','md','js','html','css','json'].includes(ext)) {
+    openApp('texteditor', { title: name, mount: (c, wid) => mountTextEditor(c, wid, { path, content: node.content, name }) });
+  } else if (['png','jpg','jpeg','gif','webp'].includes(ext)) {
+    openApp('about', { title: name, icon: '🖼️', w: 600, h: 480, mount: (c) => {
+      const isDataUrl = node.content && node.content.startsWith('data:');
+      c.style.cssText = 'display:flex;flex-direction:column;overflow:hidden;height:100%;background:#111';
+      if (isDataUrl) {
+        c.innerHTML = '<div style="flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:12px">'
+          + '<img src="' + node.content + '" style="max-width:100%;max-height:100%;object-fit:contain;display:block">'
+          + '</div>'
+          + '<div style="padding:4px 10px;font-size:11px;color:#666;border-top:1px solid #222;flex-shrink:0">' + name + '</div>';
+      } else {
+        c.innerHTML = '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:#555;flex-direction:column;gap:10px">'
+          + '<div style="font-size:48px">🖼️</div>'
+          + '<div style="font-size:13px">' + name + '</div>'
+          + '<div style="font-size:11px;color:#444">No image data — draw something in Paint first</div>'
+          + '</div>';
+      }
+    }});
+  } else {
+    alert('No app to open ' + name);
+  }
+}
+
+// ============================================================
+// .BEEP LAUNCHER — BrowserOS Extended Executable Program
+// ============================================================
+const BOS = {
+  get fs() { return OS.fs; },
+  get theme() { return { accent: OS.settings.accent, font: OS.settings.font, darkMode: OS.settings.darkMode }; },
+  notify(msg) {
+    const n = document.createElement('div');
+    n.style.cssText = `position:fixed;bottom:${parseInt(getComputedStyle(document.documentElement).getPropertyValue('--taskbar-h')||'44')+12}px;right:16px;background:rgba(20,20,40,0.97);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:10px 16px;font-size:13px;color:#e0e0ff;z-index:99998;box-shadow:0 4px 20px rgba(0,0,0,0.5);transition:opacity 0.3s`;
+    n.textContent = msg;
+    document.body.appendChild(n);
+    setTimeout(() => { n.style.opacity='0'; setTimeout(()=>n.remove(),300); }, 3000);
+  },
+  open(appId) { openApp(appId); },
+  showContextMenu(x, y, items) { showCtxMenu(x, y, items); },
+  // Called by app during main() to register a context menu handler for its window
+  // Usage: BOS.onContextMenu(function(x, y) { BOS.showContextMenu(x, y, [...]) })
+  onContextMenu(fn) {
+    // Stored on BOS._currentCtxHandler, picked up by launchBeep after main() runs
+    BOS._pendingCtxHandler = fn;
+  },
+};
+
+function launchBeep(raw, filePath) {
+  let manifest;
+  try { manifest = JSON.parse(raw); } catch(e) { alert('Invalid .beep file: ' + e.message); return; }
+  const { name='App', icon='⚡', version='', width=640, height=480, main='' } = manifest;
+  createWindow({
+    title: name + (version ? ' v'+version : ''),
+    icon,
+    w: width,
+    h: height,
+    mount(container, winId) {
+      container.style.display = 'flex';
+      container.style.flexDirection = 'column';
+      container.style.overflow = 'hidden';
+
+      // Clear any pending handler from a previous launch
+      BOS._pendingCtxHandler = null;
+
+      try {
+        const fn = new Function('container', 'winId', 'BOS', main);
+        fn(container, winId, BOS);
+      } catch(e) {
+        container.innerHTML = '<div style="padding:20px;color:#ff8888;font-family:monospace;font-size:13px">'
+          + '<b>Runtime error in ' + name + '.beep:</b><br><br>' + e.message + '</div>';
+      }
+
+      // If app registered a context menu handler, wire it up to this window's content area
+      if (BOS._pendingCtxHandler) {
+        const handler = BOS._pendingCtxHandler;
+        BOS._pendingCtxHandler = null;
+        container.addEventListener('contextmenu', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          handler(e.clientX, e.clientY, e);
+        });
+      }
+    }
+  });
+}
+
+// ============================================================
+// TEXT EDITOR APP
+// ============================================================
+function mountTextEditor(container, winId, opts) {
+  opts = opts || {};
+  let currentPath = opts.path || null;
+  let currentName = opts.name || 'Untitled.txt';
+  let saved = true;
+
+  container.innerHTML = `
+    <div class="editor-toolbar">
+      <button id="ed-new-${winId}">New</button>
+      <button id="ed-open-${winId}">Open</button>
+      <button id="ed-save-${winId}">Save</button>
+      <button id="ed-saveas-${winId}">Save As</button>
+      <span style="margin-left:8px;font-size:12px;color:var(--text-dim)" id="ed-filename-${winId}">${currentName}</span>
+    </div>
+    <textarea class="editor-area" id="ed-area-${winId}" spellcheck="true">${opts.content||''}</textarea>
+    <div class="editor-status" id="ed-status-${winId}">Ready • Ln 1, Col 1</div>
+  `;
+
+  const ta = document.getElementById('ed-area-' + winId);
+  const status = document.getElementById('ed-status-' + winId);
+
+  ta.addEventListener('input', () => {
+    saved = false;
+    updateStatus();
+    const win = Object.values(OS.windows).find(w => w.el.id === 'win_'+winId || document.getElementById('wc_'+winId)?.closest('#'+w.el.id));
+    // update title with asterisk
+  });
+
+  ta.addEventListener('keyup', updateStatus);
+  ta.addEventListener('click', updateStatus);
+
+  function updateStatus() {
+    const lines = ta.value.substring(0, ta.selectionStart).split('\n');
+    const ln = lines.length, col = lines[lines.length-1].length+1;
+    const words = ta.value.trim() ? ta.value.trim().split(/\s+/).length : 0;
+    status.textContent = `${saved?'Saved':'Modified'} • Ln ${ln}, Col ${col} • ${words} words`;
+  }
+
+  function save(path) {
+    if (!path) { saveAs(); return; }
+    OS.fs.write(path, ta.value);
+    currentPath = path;
+    saved = true;
+    updateStatus();
+  }
+
+  function saveAs() {
+    const name = prompt('Save as:', currentName);
+    if (!name) return;
+    const path = '/Documents/' + name;
+    OS.fs.touch(path, ta.value);
+    currentPath = path;
+    currentName = name;
+    document.getElementById('ed-filename-' + winId).textContent = name;
+    saved = true;
+    updateStatus();
+  }
+
+  document.getElementById('ed-new-' + winId).onclick = () => {
+    if (!saved && !confirm('Discard unsaved changes?')) return;
+    ta.value = ''; currentPath = null; currentName = 'Untitled.txt'; saved = true;
+    document.getElementById('ed-filename-' + winId).textContent = currentName;
+    updateStatus();
+  };
+  document.getElementById('ed-save-' + winId).onclick = () => save(currentPath);
+  document.getElementById('ed-saveas-' + winId).onclick = saveAs;
+  document.getElementById('ed-open-' + winId).onclick = () => {
+    const path = prompt('Open file path (e.g. /Documents/file.txt):');
+    if (!path) return;
+    const node = OS.fs.resolve(path);
+    if (!node || node.type !== 'file') { alert('File not found: ' + path); return; }
+    ta.value = node.content;
+    currentPath = path;
+    currentName = path.split('/').pop();
+    document.getElementById('ed-filename-' + winId).textContent = currentName;
+    saved = true; updateStatus();
+  };
+
+  updateStatus();
+}
+
+// ============================================================
+// TERMINAL APP
+// ============================================================
+function mountTerminal(container, winId) {
+  let cwd = '/';
+  const history = [];
+  let histPos = -1;
+
+  container.innerHTML = `
+    <div class="terminal-area" id="term-out-${winId}"></div>
+    <div class="terminal-input-row">
+      <span class="terminal-prompt" id="term-prompt-${winId}">root@bos:/ $</span>
+      <input class="terminal-input" id="term-in-${winId}" autocomplete="off" spellcheck="false">
+    </div>
+  `;
+
+  const out = document.getElementById('term-out-' + winId);
+  const inp = document.getElementById('term-in-' + winId);
+  const prompt = document.getElementById('term-prompt-' + winId);
+
+  function print(text, cls='terminal-line') {
+    const line = document.createElement('div');
+    line.className = cls;
+    line.textContent = text;
+    out.appendChild(line);
+    out.scrollTop = out.scrollHeight;
+  }
+
+  function updatePrompt() {
+    prompt.textContent = `root@bos:${cwd||'/'} $`;
+  }
+
+  print('BrowserOS Terminal v1.0', 'terminal-line sys');
+  print('Type "help" for available commands.', 'terminal-line sys');
+  print('', 'terminal-line');
+
+  const CMDS = {
+    help: () => {
+      const cmds = ['ls','cd','pwd','mkdir','touch','rm','cat','echo','clear','date','whoami','uname','cp','mv','find','wc'];
+      print('Available commands: ' + cmds.join(', '));
+    },
+    ls: (args) => {
+      const path = args[0] ? resolvePath(args[0]) : cwd;
+      const items = OS.fs.ls(path);
+      if (!items) { print('ls: cannot access "' + path + '": No such directory', 'terminal-line err'); return; }
+      if (items.length === 0) { print('(empty directory)'); return; }
+      const dirs = items.filter(i=>i.type==='dir').map(i=>i.name+'/');
+      const files = items.filter(i=>i.type!=='dir').map(i=>i.name);
+      print([...dirs,...files].join('  '));
+    },
+    cd: (args) => {
+      if (!args[0] || args[0]==='~') { cwd='/'; updatePrompt(); return; }
+      const p = resolvePath(args[0]);
+      const node = OS.fs.resolve(p);
+      if (!node || node.type!=='dir') { print('cd: not a directory: '+args[0], 'terminal-line err'); return; }
+      cwd = p; updatePrompt();
+    },
+    pwd: () => print(cwd),
+    mkdir: (args) => {
+      if (!args[0]) { print('mkdir: missing operand', 'terminal-line err'); return; }
+      const p = resolvePath(args[0]);
+      if (OS.fs.mkdir(p)) print('Created: '+p);
+      else print('mkdir: failed', 'terminal-line err');
+    },
+    touch: (args) => {
+      if (!args[0]) { print('touch: missing operand', 'terminal-line err'); return; }
+      const p = resolvePath(args[0]);
+      OS.fs.touch(p, ''); print('Touched: '+p);
+    },
+    rm: (args) => {
+      if (!args[0]) { print('rm: missing operand', 'terminal-line err'); return; }
+      const p = resolvePath(args[0]);
+      if (OS.fs.rm(p)) print('Removed: '+p);
+      else print('rm: cannot remove: no such file', 'terminal-line err');
+    },
+    cat: (args) => {
+      if (!args[0]) { print('cat: missing operand', 'terminal-line err'); return; }
+      const p = resolvePath(args[0]);
+      const node = OS.fs.resolve(p);
+      if (!node) { print('cat: '+args[0]+': No such file', 'terminal-line err'); return; }
+      if (node.type==='dir') { print('cat: '+args[0]+': Is a directory', 'terminal-line err'); return; }
+      node.content.split('\n').forEach(l => print(l));
+    },
+    echo: (args) => print(args.join(' ')),
+    clear: () => { out.innerHTML = ''; },
+    date: () => print(new Date().toString()),
+    whoami: () => print('root'),
+    uname: (args) => {
+      if (args[0]==='-a') print('BrowserOS 1.0.0 (HTML5) x86_64 BrowserOS');
+      else print('BrowserOS');
+    },
+    cp: (args) => {
+      if (args.length < 2) { print('cp: missing operand', 'terminal-line err'); return; }
+      const src = OS.fs.resolve(resolvePath(args[0]));
+      if (!src || src.type!=='file') { print('cp: source not found', 'terminal-line err'); return; }
+      OS.fs.touch(resolvePath(args[1]), src.content);
+      print('Copied '+args[0]+' → '+args[1]);
+    },
+    mv: (args) => {
+      if (args.length < 2) { print('mv: missing operand', 'terminal-line err'); return; }
+      const src = OS.fs.resolve(resolvePath(args[0]));
+      if (!src || src.type!=='file') { print('mv: source not found', 'terminal-line err'); return; }
+      OS.fs.touch(resolvePath(args[1]), src.content);
+      OS.fs.rm(resolvePath(args[0]));
+      print('Moved '+args[0]+' → '+args[1]);
+    },
+    wc: (args) => {
+      if (!args[0]) { print('wc: missing operand', 'terminal-line err'); return; }
+      const node = OS.fs.resolve(resolvePath(args[0]));
+      if (!node || node.type!=='file') { print('wc: cannot read: '+args[0], 'terminal-line err'); return; }
+      const lines = node.content.split('\n').length;
+      const words = node.content.trim().split(/\s+/).filter(Boolean).length;
+      const chars = node.content.length;
+      print(`${lines}\t${words}\t${chars}\t${args[0]}`);
+    },
+    find: (args) => {
+      const base = resolvePath(args[0]||'/');
+      function walk(path, node) {
+        if (!node) return;
+        print(path);
+        if (node.type==='dir') Object.entries(node.children).forEach(([n,c]) => walk(path.replace(/\/$/,'') + '/'+n, c));
+      }
+      walk(base, OS.fs.resolve(base));
+    },
+  };
+
+  function resolvePath(p) {
+    if (p.startsWith('/')) return p;
+    if (p === '..') {
+      const parts = cwd.split('/').filter(Boolean);
+      parts.pop();
+      return '/' + parts.join('/');
+    }
+    return (cwd.replace(/\/$/,'') + '/' + p).replace('//','/');
+  }
+
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const raw = inp.value.trim();
+      if (!raw) return;
+      history.unshift(raw); histPos = -1;
+      print(prompt.textContent + ' ' + raw);
+      inp.value = '';
+      const parts = raw.split(/\s+/);
+      const cmd = parts[0];
+      const args = parts.slice(1);
+      if (CMDS[cmd]) {
+        try { CMDS[cmd](args); } catch(err) { print('Error: '+err.message, 'terminal-line err'); }
+      } else {
+        print(cmd + ': command not found', 'terminal-line err');
+      }
+    } else if (e.key === 'ArrowUp') {
+      histPos = Math.min(histPos+1, history.length-1);
+      inp.value = history[histPos] || '';
+      e.preventDefault();
+    } else if (e.key === 'ArrowDown') {
+      histPos = Math.max(histPos-1, -1);
+      inp.value = histPos >= 0 ? (history[histPos]||'') : '';
+      e.preventDefault();
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      const val = inp.value;
+      const parts = val.split(/\s+/);
+      const last = parts[parts.length-1];
+      const dir = resolvePath(last.includes('/') ? last.substring(0, last.lastIndexOf('/')+1) : '.');
+      const prefix = last.includes('/') ? last.substring(last.lastIndexOf('/')+1) : last;
+      const items = OS.fs.ls(dir);
+      if (!items) return;
+      const matches = items.filter(i=>i.name.startsWith(prefix));
+      if (matches.length === 1) {
+        parts[parts.length-1] = (last.includes('/')?last.substring(0,last.lastIndexOf('/')+1):'') + matches[0].name + (matches[0].type==='dir'?'/':'');
+        inp.value = parts.join(' ');
+      } else if (matches.length > 1) {
+        print(matches.map(m=>m.name).join('  '));
+      }
+    }
+  });
+
+  // Auto-focus
+  container.addEventListener('click', () => inp.focus());
+  inp.focus();
+}
+
+// ============================================================
+// CALCULATOR APP
+// ============================================================
+function mountCalculator(container, winId) {
+  let expr = '', val = '0', justCalc = false;
+
+  container.innerHTML = `
+    <div class="calc-wrap">
+      <div class="calc-display">
+        <div class="calc-expr" id="calc-expr-${winId}"></div>
+        <div class="calc-val" id="calc-val-${winId}">0</div>
+      </div>
+      <div class="calc-grid" id="calc-grid-${winId}"></div>
+    </div>
+  `;
+
+  const buttons = [
+    { label:'C', type:'clear' }, { label:'±', type:'sign' }, { label:'%', type:'pct' }, { label:'÷', type:'op', v:'/' },
+    { label:'7', type:'num' }, { label:'8', type:'num' }, { label:'9', type:'num' }, { label:'×', type:'op', v:'*' },
+    { label:'4', type:'num' }, { label:'5', type:'num' }, { label:'6', type:'num' }, { label:'−', type:'op', v:'-' },
+    { label:'1', type:'num' }, { label:'2', type:'num' }, { label:'3', type:'num' }, { label:'+', type:'op', v:'+' },
+    { label:'0', type:'num', wide:true }, { label:'.', type:'dot' }, { label:'=', type:'eq' },
+  ];
+
+  const grid = document.getElementById('calc-grid-' + winId);
+  buttons.forEach(b => {
+    const btn = document.createElement('button');
+    btn.className = 'calc-btn' + (b.type==='op'?' op':'') + (b.type==='eq'?' eq':'') + (b.wide?' wide':'');
+    btn.textContent = b.label;
+    btn.onclick = () => press(b);
+    grid.appendChild(btn);
+  });
+
+  function update() {
+    document.getElementById('calc-expr-' + winId).textContent = expr;
+    document.getElementById('calc-val-' + winId).textContent = val;
+  }
+
+  function press(b) {
+    if (b.type === 'clear') { expr=''; val='0'; justCalc=false; }
+    else if (b.type === 'num') {
+      if (justCalc) { val=b.label; expr=''; justCalc=false; }
+      else val = (val==='0'?b.label:val+b.label);
+    }
+    else if (b.type === 'dot') {
+      if (!val.includes('.')) val += '.';
+    }
+    else if (b.type === 'op') {
+      justCalc=false;
+      expr = val + ' ' + b.label + ' ';
+      val = '0';
+    }
+    else if (b.type === 'sign') { val = String(-parseFloat(val)||0); }
+    else if (b.type === 'pct') { val = String(parseFloat(val)/100); }
+    else if (b.type === 'eq') {
+      try {
+        const e = expr.replace('×','*').replace('÷','/').replace('−','-') + val;
+        const res = Function('"use strict";return ('+e+')')();
+        expr = e + ' =';
+        val = String(Math.round(res*1e10)/1e10);
+        justCalc = true;
+      } catch { val = 'Error'; }
+    }
+    update();
+  }
+
+  // Keyboard support
+  document.addEventListener('keydown', function kh(e) {
+    if (!document.getElementById('calc-grid-' + winId)) { document.removeEventListener('keydown', kh); return; }
+    const map = {'0':'0','1':'1','2':'2','3':'3','4':'4','5':'5','6':'6','7':'7','8':'8','9':'9',
+      '+':'+','-':'-','*':'*','/':'/', 'Enter':'=','Escape':'C','.':'.'};
+    const v = map[e.key];
+    if (v) {
+      const btn = buttons.find(b=>(b.label===v || b.v===v) || (v==='='&&b.type==='eq') || (v==='C'&&b.type==='clear'));
+      if (btn) press(btn);
+    }
+  });
+
+  update();
+}
+
+// ============================================================
+// BROWSER APP
+// ============================================================
+function mountBrowser(container, winId) {
+  let url = '';
+
+  container.innerHTML = `
+    <div class="browser-bar">
+      <button id="br-back-${winId}" title="Back">◀</button>
+      <button id="br-fwd-${winId}" title="Forward">▶</button>
+      <button id="br-reload-${winId}" title="Reload">⟳</button>
+      <input class="browser-url" id="br-url-${winId}" placeholder="Enter URL and press Enter..." value="">
+      <button id="br-go-${winId}">Go</button>
+    </div>
+    <div class="browser-frame-wrap" id="br-wrap-${winId}">
+      <div class="browser-blocked">
+        <div class="block-icon">🌐</div>
+        <div>Enter a URL to browse</div>
+        <div style="font-size:11px;color:#555;max-width:280px">Note: Most sites block iframe embedding (X-Frame-Options). Try: <b>wikipedia.org</b>, <b>example.com</b>, or other iframe-friendly sites.</div>
+      </div>
+    </div>
+  `;
+
+  const urlInput = document.getElementById('br-url-' + winId);
+  const wrap = document.getElementById('br-wrap-' + winId);
+  let iframe = null;
+
+  function navigate(u) {
+    if (!u) return;
+    if (!u.startsWith('http')) u = 'https://' + u;
+    url = u;
+    urlInput.value = url;
+    wrap.innerHTML = '';
+    iframe = document.createElement('iframe');
+    iframe.className = 'browser-iframe';
+    iframe.src = url;
+    iframe.sandbox = 'allow-scripts allow-same-origin allow-forms allow-popups';
+    iframe.onerror = () => showBlocked(url);
+    wrap.appendChild(iframe);
+  }
+
+  function showBlocked(u) {
+    wrap.innerHTML = `<div class="browser-blocked">
+      <div class="block-icon">🚫</div>
+      <div>Cannot load: ${u}</div>
+      <div style="font-size:11px;color:#555;margin-top:8px">This site may block iframe embedding.</div>
+    </div>`;
+  }
+
+  urlInput.addEventListener('keydown', e => { if (e.key==='Enter') navigate(urlInput.value.trim()); });
+  document.getElementById('br-go-' + winId).onclick = () => navigate(urlInput.value.trim());
+  document.getElementById('br-back-' + winId).onclick = () => { try { iframe?.contentWindow.history.back(); } catch(e){} };
+  document.getElementById('br-fwd-' + winId).onclick = () => { try { iframe?.contentWindow.history.forward(); } catch(e){} };
+  document.getElementById('br-reload-' + winId).onclick = () => { if (iframe) iframe.src = iframe.src; };
+}
+
+// ============================================================
+// SETTINGS APP
+// ============================================================
+function mountSettings(container, winId) {
+  const sections = [
+    { id:'appearance', label:'🎨 Appearance', icon:'🎨' },
+    { id:'display', label:'🖥️ Display', icon:'🖥️' },
+    { id:'system', label:'⚙️ System', icon:'⚙️' },
+    { id:'storage', label:'💾 Storage', icon:'💾' },
+  ];
+
+  container.innerHTML = `
+    <div class="settings-layout">
+      <div class="settings-sidebar">
+        ${sections.map(s=>`<div class="settings-nav-item ${s.id==='appearance'?'active':''}" data-section="${s.id}">${s.label}</div>`).join('')}
+      </div>
+      <div class="settings-main" id="set-main-${winId}"></div>
+    </div>
+  `;
+
+  const nav = container.querySelectorAll('.settings-nav-item');
+  nav.forEach(el => el.onclick = () => {
+    nav.forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    renderSection(el.dataset.section);
+  });
+
+  function renderSection(id) {
+    const main = document.getElementById('set-main-' + winId);
+    if (id === 'appearance') {
+      const accents = ['#0078d4','#e81123','#107c10','#ff8c00','#8764b8','#00b294','#ca5010','#038387'];
+      const wallpapers = [
+        { label:'Galaxy', val:'linear-gradient(135deg, #0f0c29, #302b63, #24243e)' },
+        { label:'Sunset', val:'linear-gradient(135deg, #f093fb, #f5576c, #fda085)' },
+        { label:'Ocean', val:'linear-gradient(135deg, #2193b0, #6dd5ed)' },
+        { label:'Forest', val:'linear-gradient(135deg, #134e5e, #71b280)' },
+        { label:'Midnight', val:'linear-gradient(135deg, #0a0a0a, #1a1a2e, #16213e)' },
+        { label:'Neon', val:'linear-gradient(135deg, #1a0533, #2d0d5e, #0d1b2a)' },
+        { label:'Lava', val:'linear-gradient(135deg, #200122, #6f0000)' },
+        { label:'Arctic', val:'linear-gradient(135deg, #b8d4e3, #d9ecf7, #e8f4f8)' },
+      ];
+      main.innerHTML = `
+        <div class="settings-section">
+          <h2>Appearance</h2>
+          <div class="settings-row">
+            <div><div class="settings-row-label">Accent Color</div><div class="settings-row-sub">Used for highlights and active elements</div></div>
+            <div class="color-row" id="accent-swatches-${winId}">
+              ${accents.map(c=>`<div class="color-swatch ${OS.settings.accent===c?'selected':''}" style="background:${c}" data-color="${c}"></div>`).join('')}
+            </div>
+          </div>
+          <div class="settings-row">
+            <div><div class="settings-row-label">Wallpaper</div><div class="settings-row-sub">Desktop background</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:8px 0 16px">
+            ${wallpapers.map(w=>`
+              <div class="wp-option" data-val="${w.val}" style="cursor:pointer;border-radius:8px;overflow:hidden;border:2px solid ${OS.settings.wallpaper===w.val?'var(--accent)':'transparent'}">
+                <div style="height:52px;background:${w.val}"></div>
+                <div style="font-size:11px;text-align:center;padding:4px">${w.label}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="settings-row">
+            <div><div class="settings-row-label">Transparency Effects</div><div class="settings-row-sub">Frosted glass on taskbar and menus</div></div>
+            <div class="toggle ${OS.settings.transparency?'on':''}" id="transp-toggle-${winId}"></div>
+          </div>
+          <div class="settings-row">
+            <div><div class="settings-row-label">Dark Mode</div></div>
+            <div class="toggle ${OS.settings.darkMode?'on':''}" id="dark-toggle-${winId}"></div>
+          </div>
+        </div>
+      `;
+
+      // Accent swatches
+      container.querySelectorAll(`#accent-swatches-${winId} .color-swatch`).forEach(el => {
+        el.onclick = () => {
+          OS.settings.accent = el.dataset.color;
+          document.documentElement.style.setProperty('--accent', el.dataset.color);
+          container.querySelectorAll(`#accent-swatches-${winId} .color-swatch`).forEach(s => s.classList.remove('selected'));
+          el.classList.add('selected');
+          saveSettings();
+        };
+      });
+
+      // Wallpaper
+      container.querySelectorAll('.wp-option').forEach(el => {
+        el.onclick = () => {
+          OS.settings.wallpaper = el.dataset.val;
+          document.documentElement.style.setProperty('--wallpaper', el.dataset.val);
+          document.body.style.background = el.dataset.val;
+          container.querySelectorAll('.wp-option').forEach(s => s.style.borderColor='transparent');
+          el.style.borderColor = 'var(--accent)';
+          saveSettings();
+        };
+      });
+
+      // Transparency toggle
+      document.getElementById('transp-toggle-' + winId).onclick = function() {
+        OS.settings.transparency = !OS.settings.transparency;
+        this.classList.toggle('on', OS.settings.transparency);
+        document.getElementById('taskbar').style.backdropFilter = OS.settings.transparency ? 'blur(20px)' : 'none';
+        saveSettings();
+      };
+      document.getElementById('dark-toggle-' + winId).onclick = function() {
+        OS.settings.darkMode = !OS.settings.darkMode;
+        this.classList.toggle('on', OS.settings.darkMode);
+        document.documentElement.style.setProperty('--win-bg', OS.settings.darkMode ? '#1e1e2e' : '#f0f0f5');
+        document.documentElement.style.setProperty('--text', OS.settings.darkMode ? '#e0e0ff' : '#111');
+        document.documentElement.style.setProperty('--win-titlebar', OS.settings.darkMode ? '#2a2a4a' : '#e0e0f0');
+        document.documentElement.style.setProperty('--sidebar-bg', OS.settings.darkMode ? '#15152a' : '#d8d8ec');
+        document.documentElement.style.setProperty('--hover', OS.settings.darkMode ? '#2d2d4e' : '#c8c8e8');
+        saveSettings();
+      };
+
+    } else if (id === 'display') {
+      const fonts = [
+        { label: 'Segoe UI', val: "'Segoe UI', system-ui, sans-serif" },
+        { label: 'Arial', val: "Arial, sans-serif" },
+        { label: 'Georgia', val: "Georgia, serif" },
+        { label: 'Courier New', val: "'Courier New', monospace" },
+        { label: 'Trebuchet MS', val: "'Trebuchet MS', sans-serif" },
+        { label: 'Verdana', val: "Verdana, sans-serif" },
+        { label: 'Impact', val: "Impact, sans-serif" },
+        { label: 'Palatino', val: "'Palatino Linotype', serif" },
+      ];
+      main.innerHTML = `
+        <div class="settings-section">
+          <h2>Display</h2>
+          <div class="settings-row" style="align-items:flex-start;flex-direction:column;gap:10px">
+            <div><div class="settings-row-label">UI Font</div><div class="settings-row-sub">Applied to all windows and UI elements</div></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%">
+              ${fonts.map(f => `
+                <div class="font-option ${OS.settings.font===f.val?'font-selected':''}" data-val="${f.val}"
+                  style="padding:10px 14px;border-radius:6px;border:1px solid ${OS.settings.font===f.val?'var(--accent)':'rgba(255,255,255,0.1)'};cursor:pointer;background:${OS.settings.font===f.val?'rgba(0,120,212,0.15)':'rgba(255,255,255,0.04)'};font-family:${f.val};transition:all 0.15s">
+                  <div style="font-size:15px">${f.label}</div>
+                  <div style="font-size:11px;opacity:0.5;margin-top:2px">The quick brown fox</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <div class="settings-row" style="margin-top:8px">
+            <div><div class="settings-row-label">Show Clock</div></div>
+            <div class="toggle ${OS.settings.showClock?'on':''}" id="clock-toggle-${winId}"></div>
+          </div>
+        </div>
+      `;
+      main.querySelectorAll('.font-option').forEach(el => {
+        el.onclick = () => {
+          OS.settings.font = el.dataset.val;
+          document.documentElement.style.setProperty('--font', el.dataset.val);
+          document.body.style.fontFamily = el.dataset.val;
+          main.querySelectorAll('.font-option').forEach(f => {
+            f.style.borderColor = 'rgba(255,255,255,0.1)';
+            f.style.background = 'rgba(255,255,255,0.04)';
+          });
+          el.style.borderColor = 'var(--accent)';
+          el.style.background = 'rgba(0,120,212,0.15)';
+          saveSettings();
+        };
+      });
+      document.getElementById('clock-toggle-' + winId).onclick = function() {
+        OS.settings.showClock = !OS.settings.showClock;
+        this.classList.toggle('on', OS.settings.showClock);
+        document.getElementById('clock').style.display = OS.settings.showClock ? '' : 'none';
+        saveSettings();
+      };
+
+    } else if (id === 'system') {
+      main.innerHTML = `
+        <div class="settings-section">
+          <h2>System</h2>
+          <div class="settings-row">
+            <div><div class="settings-row-label">OS Version</div></div>
+            <div style="color:var(--text-dim);font-size:13px">BrowserOS 1.0.0</div>
+          </div>
+          <div class="settings-row">
+            <div><div class="settings-row-label">Engine</div></div>
+            <div style="color:var(--text-dim);font-size:13px">HTML5 / LocalStorage FS</div>
+          </div>
+          <div class="settings-row">
+            <div><div class="settings-row-label">Reset Settings</div><div class="settings-row-sub">Restore default appearance</div></div>
+            <button onclick="resetSettings()" style="background:rgba(200,50,50,0.2);border:1px solid rgba(200,50,50,0.4);color:#ff8888;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:13px">Reset</button>
+          </div>
+          <div class="settings-row">
+            <div><div class="settings-row-label">Reset Filesystem</div><div class="settings-row-sub">⚠️ Deletes all your files!</div></div>
+            <button onclick="if(confirm('Delete ALL files? This cannot be undone.')){localStorage.removeItem('bos_fs');location.reload();}" style="background:rgba(200,50,50,0.2);border:1px solid rgba(200,50,50,0.4);color:#ff8888;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:13px">Reset FS</button>
+          </div>
+        </div>
+      `;
+
+    } else if (id === 'storage') {
+      let used = 0;
+      try { for (const k in localStorage) used += (localStorage.getItem(k)||'').length; } catch(e){}
+      const usedKB = Math.round(used/1024);
+      main.innerHTML = `
+        <div class="settings-section">
+          <h2>Storage</h2>
+          <div class="settings-row">
+            <div><div class="settings-row-label">localStorage Usage</div><div class="settings-row-sub">Browser storage for files</div></div>
+            <div style="color:var(--text-dim);font-size:13px">${usedKB} KB used</div>
+          </div>
+          <div style="margin:12px 0;height:8px;background:#333;border-radius:4px;overflow:hidden">
+            <div style="height:100%;background:var(--accent);width:${Math.min(100,usedKB/50)}%;border-radius:4px"></div>
+          </div>
+          <div style="font-size:12px;color:var(--text-dim)">~5MB available in most browsers</div>
+        </div>
+      `;
+    }
+  }
+
+  renderSection('appearance');
+}
+
+function saveSettings() {
+  localStorage.setItem('bos_settings', JSON.stringify(OS.settings));
+}
+
+function resetSettings() {
+  localStorage.removeItem('bos_settings');
+  location.reload();
+}
+
+// ============================================================
+// ABOUT APP
+// ============================================================
+function mountAbout(container, winId) {
+  container.innerHTML = `
+    <div class="about-content">
+      <h1>🖥️ BrowserOS</h1>
+      <span class="version">Version 1.0.0</span>
+      <p style="margin-top:14px">A fully functional operating system running in your browser.</p>
+      <p style="margin-top:10px">
+        <b>Features:</b><br>
+        • Real filesystem (localStorage-backed)<br>
+        • Draggable, resizable windows<br>
+        • File Manager with full CRUD<br>
+        • Text Editor with save/load<br>
+        • Terminal with 15+ commands<br>
+        • Calculator with keyboard support<br>
+        • Browser (iframe-based)<br>
+        • Settings with live theme changes<br>
+        • Start menu with app search<br>
+        • Right-click context menu<br>
+        • Window minimize/maximize/close
+      </p>
+      <p style="margin-top:14px;color:var(--text-dim);font-size:12px">Built with pure HTML5, CSS3, and vanilla JavaScript.</p>
+    </div>
+  `;
+}
+
+// ============================================================
+// START MENU
+// ============================================================
+const startMenu = document.getElementById('start-menu');
+const startBtn = document.getElementById('start-btn');
+const startGrid = document.getElementById('start-app-grid');
+
+Object.entries(APPS).forEach(([id, app]) => {
+  const el = document.createElement('div');
+  el.className = 'start-app-item';
+  el.dataset.appid = id;
+  el.innerHTML = `<span class="sai-icon">${app.icon}</span><span>${app.title}</span>`;
+  el.onclick = () => { openApp(id); toggleStart(false); };
+  startGrid.appendChild(el);
+});
+
+// Also load installed .beep apps from /Apps
+(function loadBeepApps() {
+  const items = OS.fs.ls('/Apps') || [];
+  items.filter(i => i.name.endsWith('.beep')).forEach(item => {
+    try {
+      const manifest = JSON.parse(item.content);
+      const el = document.createElement('div');
+      el.className = 'start-app-item';
+      el.innerHTML = `<span class="sai-icon">${manifest.icon||'⚡'}</span><span>${manifest.name||item.name}</span>`;
+      el.onclick = () => { launchBeep(item.content, '/Apps/'+item.name); toggleStart(false); };
+      startGrid.appendChild(el);
+    } catch(e) {}
+  });
+})();
+
+document.getElementById('start-search').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  startGrid.querySelectorAll('.start-app-item').forEach(el => {
+    el.style.display = el.querySelector('span:last-child').textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+
+function toggleStart(force) {
+  const open = force !== undefined ? force : !startMenu.classList.contains('open');
+  startMenu.classList.toggle('open', open);
+  if (open) document.getElementById('start-search').focus();
+}
+
+startBtn.onclick = (e) => { e.stopPropagation(); toggleStart(); };
+document.addEventListener('click', (e) => {
+  if (!startMenu.contains(e.target) && e.target !== startBtn) toggleStart(false);
+});
+
+// ============================================================
+// CONTEXT MENU
+// ============================================================
+const ctxMenu = document.getElementById('context-menu');
+
+function showCtxMenu(x, y, items) {
+  ctxMenu.innerHTML = items.map((item, i) =>
+    item === 'sep' ? '<div class="ctx-sep"></div>' :
+    `<div class="ctx-item" data-idx="${i}">${item.label}</div>`
+  ).join('');
+  ctxMenu.style.left = Math.min(x, window.innerWidth-220) + 'px';
+  ctxMenu.style.top = Math.min(y, window.innerHeight-40-items.length*34) + 'px';
+  ctxMenu.style.display = 'block';
+  ctxMenu.querySelectorAll('.ctx-item').forEach(el => {
+    const item = items[parseInt(el.dataset.idx)];
+    el.onclick = () => { item.action(); hideCtxMenu(); };
+  });
+}
+
+function hideCtxMenu() { ctxMenu.style.display = 'none'; }
+document.addEventListener('click', hideCtxMenu);
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// Desktop context menu (empty space only)
+document.getElementById('desktop').addEventListener('contextmenu', e => {
+  if (e.target.closest('.window') || e.target.closest('.desktop-icon')) return;
+  showCtxMenu(e.clientX, e.clientY, [
+    { label: '📁 New Folder on Desktop', action: () => {
+      const name = prompt('Folder name:');
+      if (!name) return;
+      OS.fs.mkdir('/Desktop/' + name);
+      addDynamicDesktopIcon({ label: name, icon: '📁', fspath: '/Desktop/' + name, isDir: true, x: e.clientX - 38, y: e.clientY - 20 });
+    }},
+    { label: '📄 New Text File on Desktop', action: () => {
+      const name = prompt('File name:', 'untitled.txt');
+      if (!name) return;
+      OS.fs.touch('/Desktop/' + name, '');
+      addDynamicDesktopIcon({ label: name, icon: getFileIcon(name), fspath: '/Desktop/' + name, x: e.clientX - 38, y: e.clientY - 20 });
+    }},
+    'sep',
+    { label: '📂 Open File Manager', action: () => openApp('filemanager') },
+    { label: '📝 Open Text Editor', action: () => openApp('texteditor') },
+    { label: '⌨️ Open Terminal', action: () => openApp('terminal') },
+    { label: '🎨 Open Paint', action: () => { const n = OS.fs.resolve('/Apps/paint.beep'); if(n) launchBeep(n.content,'/Apps/paint.beep'); }},
+    { label: '🧮 Open Calculator', action: () => { const n = OS.fs.resolve('/Apps/calculator.beep'); if(n) launchBeep(n.content,'/Apps/calculator.beep'); }},
+    { label: '🌐 Open Browser', action: () => { const n = OS.fs.resolve('/Apps/browser.beep'); if(n) launchBeep(n.content,'/Apps/browser.beep'); }},
+    'sep',
+    { label: '⚙️ Settings', action: () => openApp('settings') },
+    { label: 'ℹ️ About BrowserOS', action: () => openApp('about') },
+  ]);
+});
+
+// ============================================================
+// DESKTOP ICONS
+// ============================================================
+const desktopIcons = [
+  { label: 'File Manager', icon: '📁', app: 'filemanager',  x: 20,  y: 20  },
+  { label: 'Text Editor',  icon: '📝', app: 'texteditor',   x: 20,  y: 120 },
+  { label: 'Terminal',     icon: '⌨️',  app: 'terminal',     x: 20,  y: 220 },
+  { label: 'Calculator',   icon: '🧮', beep: '/Apps/calculator.beep', x: 20,  y: 320 },
+  { label: 'Browser',      icon: '🌐', beep: '/Apps/browser.beep',    x: 20,  y: 420 },
+  { label: 'Settings',     icon: '⚙️',  app: 'settings',     x: 110, y: 20  },
+  { label: 'About',        icon: 'ℹ️',  beep: '/Apps/about.beep',     x: 110, y: 120 },
+  { label: 'Paint',        icon: '🎨', beep: '/Apps/paint.beep',      x: 110, y: 220 },
+];
+
+// Track which icon is being dragged
+OS._draggingIcon = null;
+
+function addDynamicDesktopIcon(ic) {
+  const el = document.createElement('div');
+  el.className = 'desktop-icon';
+  el.style.left = ic.x + 'px';
+  el.style.top  = ic.y + 'px';
+  el.innerHTML = '<span class="icon-img">' + ic.icon + '</span><span class="icon-label">' + ic.label + '</span>';
+
+  function launch() {
+    if (ic.beep) {
+      const node = OS.fs.resolve(ic.beep);
+      if (node) launchBeep(node.content, ic.beep);
+    } else if (ic.fspath) {
+      openFileWith(ic.fspath, ic.label);
+    } else if (ic.app) {
+      openApp(ic.app);
+    }
+  }
+
+  el.ondblclick = launch;
+
+  el.onclick = (e) => {
+    document.querySelectorAll('.desktop-icon').forEach(d => d.classList.remove('selected'));
+    el.classList.add('selected');
+    e.stopPropagation();
+  };
+
+  el.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    document.querySelectorAll('.desktop-icon').forEach(d => d.classList.remove('selected'));
+    el.classList.add('selected');
+
+    const items = [
+      { label: '📂 Open', action: launch },
+    ];
+
+    // Rename/delete only for user-created FS items, not built-in app shortcuts
+    if (ic.fspath) {
+      items.push('sep');
+      items.push({ label: '✏️ Rename', action: () => {
+        const nn = prompt('New name:', ic.label);
+        if (!nn || nn === ic.label) return;
+        OS.fs.rename(ic.fspath, nn);
+        ic.fspath = ic.fspath.replace(/[^/]+$/, nn);
+        ic.label = nn;
+        el.querySelector('.icon-label').textContent = nn;
+      }});
+      items.push({ label: '🗑️ Delete', action: () => {
+        if (!confirm('Delete "' + ic.label + '"?')) return;
+        OS.fs.rm(ic.fspath);
+        el.remove();
+      }});
+    } else if (ic.beep) {
+      // beep app shortcuts get open + open with editor
+      items.push('sep');
+      items.push({ label: '📝 Edit .beep file', action: () => {
+        const node = OS.fs.resolve(ic.beep);
+        if (node) openApp('texteditor', { title: ic.label, mount: (c, wid) => mountTextEditor(c, wid, { path: ic.beep, content: node.content, name: ic.label }) });
+      }});
+    }
+
+    items.push('sep');
+    items.push({ label: '📌 Properties', action: () => {
+      const info = ic.fspath ? OS.fs.resolve(ic.fspath) : null;
+      alert((ic.label) + '\nType: ' + (ic.app ? 'System App' : ic.beep ? '.beep App' : info?.type || 'file') + (ic.fspath ? '\nPath: ' + ic.fspath : ''));
+    }});
+
+    showCtxMenu(e.clientX, e.clientY, items);
+  });
+
+  // Drag — move icon, and support dropping onto folder icons
+  let sx, sy, sl, st, didDrag = false;
+  el.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    didDrag = false;
+    sx = e.clientX; sy = e.clientY;
+    sl = parseInt(el.style.left)||0; st = parseInt(el.style.top)||0;
+
+    const onMove = e2 => {
+      const dx = e2.clientX - sx, dy = e2.clientY - sy;
+      if (!didDrag && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+      didDrag = true;
+      el.style.left = Math.max(0, sl + dx) + 'px';
+      el.style.top  = Math.max(0, st + dy) + 'px';
+      el.style.opacity = '0.7';
+      OS._draggingIcon = { ic, el };
+
+      // Highlight folder under cursor
+      document.querySelectorAll('.desktop-icon').forEach(other => {
+        if (other === el) return;
+        const r = other.getBoundingClientRect();
+        const over = e2.clientX >= r.left && e2.clientX <= r.right && e2.clientY >= r.top && e2.clientY <= r.bottom;
+        const otherIc = other._ic;
+        const isFolder = otherIc && otherIc.fspath && OS.fs.resolve(otherIc.fspath)?.type === 'dir';
+        other.style.outline = (over && isFolder) ? '2px solid var(--accent)' : '';
+        other.style.background = (over && isFolder) ? 'rgba(0,120,212,0.25)' : '';
+      });
+    };
+
+    const onUp = e2 => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      el.style.opacity = '';
+      OS._draggingIcon = null;
+
+      // Check if dropped onto a folder
+      if (didDrag) {
+        document.querySelectorAll('.desktop-icon').forEach(other => {
+          other.style.outline = '';
+          other.style.background = '';
+          if (other === el) return;
+          const r = other.getBoundingClientRect();
+          const over = e2.clientX >= r.left && e2.clientX <= r.right && e2.clientY >= r.top && e2.clientY <= r.bottom;
+          if (!over) return;
+          const otherIc = other._ic;
+          if (!otherIc || !otherIc.fspath) return;
+          const targetNode = OS.fs.resolve(otherIc.fspath);
+          if (!targetNode || targetNode.type !== 'dir') return;
+          // Only move FS-backed icons (not system app shortcuts)
+          if (!ic.fspath && !ic.beep) return;
+          const srcPath = ic.fspath || ic.beep;
+          const filename = srcPath.split('/').pop(); // actual filename, e.g. "paint.beep"
+          const destPath = otherIc.fspath.replace(/\/$/, '') + '/' + filename;
+          // Copy + delete (move)
+          const srcNode = OS.fs.resolve(srcPath);
+          if (!srcNode) return;
+          if (srcNode.type === 'file') {
+            OS.fs.touch(destPath, srcNode.content);
+          } else {
+            OS.fs.mkdir(destPath);
+          }
+          OS.fs.rm(srcPath);
+          // Update ic so future launches use new path
+          if (ic.fspath) ic.fspath = destPath;
+          if (ic.beep) ic.beep = destPath;
+          el.remove();
+          BOS.notify('Moved "' + filename + '" into "' + otherIc.label + '"');
+        });
+      }
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  el._ic = ic; // store ref for DnD target detection
+  document.getElementById('desktop').appendChild(el);
+  return el;
+}
+
+desktopIcons.forEach(ic => addDynamicDesktopIcon(ic));
+
+document.getElementById('desktop').addEventListener('click', e => {
+  if (!e.target.closest('.desktop-icon')) {
+    document.querySelectorAll('.desktop-icon').forEach(d => d.classList.remove('selected'));
+  }
+});
+
+// ============================================================
+// CLOCK
+// ============================================================
+function updateClock() {
+  const now = new Date();
+  const t = now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const d = now.toLocaleDateString([], {month:'short',day:'numeric'});
+  document.getElementById('clock').innerHTML = `${t}<br><span style="font-size:10px">${d}</span>`;
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ============================================================
+// LOAD SAVED SETTINGS
+// ============================================================
+(function loadSettings() {
+  const saved = localStorage.getItem('bos_settings');
+  if (!saved) return;
+  try {
+    const s = JSON.parse(saved);
+    Object.assign(OS.settings, s);
+    if (s.accent) document.documentElement.style.setProperty('--accent', s.accent);
+    if (s.wallpaper) document.body.style.background = s.wallpaper;
+    if (s.font) { document.documentElement.style.setProperty('--font', s.font); document.body.style.fontFamily = s.font; }
+    if (!s.showClock) document.getElementById('clock').style.display = 'none';
+    if (!s.transparency) document.getElementById('taskbar').style.backdropFilter = 'none';
+    if (!s.darkMode) {
+      document.documentElement.style.setProperty('--win-bg', '#f0f0f5');
+      document.documentElement.style.setProperty('--text', '#111');
+      document.documentElement.style.setProperty('--win-titlebar', '#e0e0f0');
+      document.documentElement.style.setProperty('--sidebar-bg', '#d8d8ec');
+      document.documentElement.style.setProperty('--hover', '#c8c8e8');
+    }
+  } catch(e){}
+})();
+
+// ============================================================
+// KEYBOARD SHORTCUTS
+// ============================================================
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'F1') openApp('filemanager');
+  if (e.ctrlKey && e.key === 'F2') openApp('terminal');
+  if (e.ctrlKey && e.key === 'F3') openApp('texteditor');
+  if (e.key === 'Escape') {
+    hideCtxMenu();
+    toggleStart(false);
+  }
+  // Alt+F4 close active window
+  if (e.altKey && e.key === 'F4' && OS.activeWin) {
+    closeWindow(OS.activeWin);
+    e.preventDefault();
+  }
+});
+</script>
+</body>
+</html>
