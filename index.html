@@ -595,7 +595,7 @@
 // CORE OS STATE
 // ============================================================
 const OS = {
-  version: '1.7.0',
+  version: '1.7.2',
   windows: {},
   zIndex: 100,
   activeWin: null,
@@ -750,6 +750,11 @@ const ABOUT_BEEP = JSON.stringify({
     "  +'<p style=\"margin-bottom:16px\">A fully functional operating system running in a single HTML file.</p>'",
     "  +'<div style=\"font-weight:bold;margin-bottom:8px\">Changelog</div>'",
     "  +'<div style=\"font-family:monospace;font-size:12px;background:rgba(0,0,0,0.2);border-radius:6px;padding:12px;line-height:2\">'",
+    "  +'<span style=\"color:var(--accent)\">1.7.2</span> Fix drag desktop \u2192 File Manager now works reliably<br>'",
+    "  +'<span style=\"color:var(--accent)\">1.7.2</span> Fix FM folders visible again (use-before-declare bug)<br>'",
+    "  +'<span style=\"color:var(--accent)\">1.7.2</span> Fix .beep icon/name preserved when moved back to desktop<br>'",
+    "  +'<span style=\"color:var(--accent)\">1.7.1</span> Fix .beep icons/names show correctly in File Manager<br>'",
+    "  +'<span style=\"color:var(--accent)\">1.7.1</span> Fix desktop .beep drag no longer dupes or lags<br>'",
     "  +'<span style=\"color:var(--accent)\">1.7.0</span> Browser v2: tabs, bookmarks, history, new tab page<br>'",
     "  +'<span style=\"color:var(--accent)\">1.6.4</span> Fix FM blank space right-click not appearing<br>'",
     "  +'<span style=\"color:var(--accent)\">1.6.3</span> Fix image viewer actually renders saved images<br>'",
@@ -1413,12 +1418,24 @@ function mountFileManager(container, winId, startPath) {
     selected = null;
     if (!items) { grid.innerHTML = '<div style="padding:16px;color:var(--text-dim)">Cannot read directory</div>'; return; }
 
-    grid.innerHTML = items.map(item => `
-      <div class="fm-item" data-name="${item.name}" data-type="${item.type}">
-        <span class="fi-icon">${item.type==='dir'?'📁':getFileIcon(item.name)}</span>
-        <span class="fi-name">${item.name}</span>
-      </div>
-    `).join('');
+    function getItemDisplay(item) {
+      if (item.type === 'dir') return { icon: '📁', label: item.name };
+      if (item.name.endsWith('.beep')) {
+        try {
+          const m = JSON.parse(item.content);
+          return { icon: m.icon || '⚡', label: (m.name || item.name) + ' (' + item.name + ')' };
+        } catch(e) {}
+      }
+      return { icon: getFileIcon(item.name), label: item.name };
+    }
+
+    grid.innerHTML = items.map(item => {
+      const d = getItemDisplay(item);
+      return `<div class="fm-item" data-name="${item.name}" data-type="${item.type}">
+        <span class="fi-icon">${d.icon}</span>
+        <span class="fi-name">${d.label}</span>
+      </div>`;
+    }).join('');
 
     grid.querySelectorAll('.fm-item').forEach(el => {
       const name = el.dataset.name;
@@ -1602,8 +1619,28 @@ function mountFileManager(container, winId, startPath) {
     fileInput.value = ''; // reset so same file can be re-imported
   };
 
-  // Drag-and-drop from host OS onto File Manager
   const fmMain = container.querySelector('.fm-main');
+
+  // Receive desktop icon drops via custom event
+  fmMain.addEventListener('bos-icon-drop', e => {
+    const ic = e.detail.ic;
+    const srcPath = ic.fspath || ic.beep;
+    if (!srcPath) return;
+    const filename = srcPath.split('/').pop();
+    const destPath = cwd.replace(/\/$/, '') + '/' + filename;
+    if (srcPath === destPath) return;
+    const srcNode = OS.fs.resolve(srcPath);
+    if (!srcNode) return;
+    if (srcNode.type === 'file') OS.fs.touch(destPath, srcNode.content);
+    else OS.fs.mkdir(destPath);
+    OS.fs.rm(srcPath);
+    // Remove the desktop icon
+    document.querySelectorAll('.desktop-icon').forEach(icon => {
+      if (icon._ic && (icon._ic.fspath === srcPath || icon._ic.beep === srcPath)) icon.remove();
+    });
+    render();
+    BOS.notify('Moved "' + filename + '" to ' + cwd);
+  });
   fmMain.addEventListener('dragover', e => {
     e.preventDefault();
     fmMain.style.outline = '2px dashed var(--accent)';
@@ -2611,8 +2648,11 @@ function addDynamicDesktopIcon(ic) {
     showCtxMenu(e.clientX, e.clientY, items);
   });
 
-  // Mouse drag (existing — for moving icon position + dropping onto desktop folders)
+  // Unified drag handler — handles both desktop repositioning AND dragging into FM
+  // Uses mouse events throughout; when dropped on FM, uses a custom OS._fmDrop channel
   let sx, sy, sl, st, didDrag = false;
+  el.draggable = false; // never use HTML5 drag — use mouse events + custom drop channel
+
   el.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     didDrag = false;
@@ -2628,7 +2668,7 @@ function addDynamicDesktopIcon(ic) {
       el.style.opacity = '0.7';
       OS._draggingIcon = { ic, el };
 
-      // Highlight folder under cursor
+      // Highlight desktop folder icons under cursor
       document.querySelectorAll('.desktop-icon').forEach(other => {
         if (other === el) return;
         const r = other.getBoundingClientRect();
@@ -2638,6 +2678,14 @@ function addDynamicDesktopIcon(ic) {
         other.style.outline = (over && isFolder) ? '2px solid var(--accent)' : '';
         other.style.background = (over && isFolder) ? 'rgba(0,120,212,0.25)' : '';
       });
+
+      // Highlight FM windows under cursor
+      document.querySelectorAll('.fm-main').forEach(fm => {
+        const r = fm.getBoundingClientRect();
+        const over = e2.clientX >= r.left && e2.clientX <= r.right && e2.clientY >= r.top && e2.clientY <= r.bottom;
+        fm.style.outline = over ? '2px dashed var(--accent)' : '';
+        fm.style.background = over ? 'rgba(0,120,212,0.08)' : '';
+      });
     };
 
     const onUp = e2 => {
@@ -2646,51 +2694,54 @@ function addDynamicDesktopIcon(ic) {
       el.style.opacity = '';
       OS._draggingIcon = null;
 
+      // Clear all highlights
+      document.querySelectorAll('.desktop-icon').forEach(o => { o.style.outline = ''; o.style.background = ''; });
+      document.querySelectorAll('.fm-main').forEach(fm => { fm.style.outline = ''; fm.style.background = ''; });
+
+      if (!didDrag) return;
+
+      // Check if dropped onto an FM window
+      let droppedOnFM = false;
+      document.querySelectorAll('.fm-main').forEach(fm => {
+        const r = fm.getBoundingClientRect();
+        const over = e2.clientX >= r.left && e2.clientX <= r.right && e2.clientY >= r.top && e2.clientY <= r.bottom;
+        if (!over) return;
+        droppedOnFM = true;
+        // Fire custom event so that FM instance can handle it
+        fm.dispatchEvent(new CustomEvent('bos-icon-drop', { detail: { ic } }));
+      });
+
+      if (droppedOnFM) return;
+
       // Check if dropped onto a desktop folder icon
-      if (didDrag) {
-        document.querySelectorAll('.desktop-icon').forEach(other => {
-          other.style.outline = '';
-          other.style.background = '';
-          if (other === el) return;
-          const r = other.getBoundingClientRect();
-          const over = e2.clientX >= r.left && e2.clientX <= r.right && e2.clientY >= r.top && e2.clientY <= r.bottom;
-          if (!over) return;
-          const otherIc = other._ic;
-          if (!otherIc || !otherIc.fspath) return;
-          const targetNode = OS.fs.resolve(otherIc.fspath);
-          if (!targetNode || targetNode.type !== 'dir') return;
-          if (!ic.fspath && !ic.beep) return;
-          const srcPath = ic.fspath || ic.beep;
-          const filename = srcPath.split('/').pop();
-          const destPath = otherIc.fspath.replace(/\/$/, '') + '/' + filename;
-          const srcNode = OS.fs.resolve(srcPath);
-          if (!srcNode) return;
-          if (srcNode.type === 'file') OS.fs.touch(destPath, srcNode.content);
-          else OS.fs.mkdir(destPath);
-          OS.fs.rm(srcPath);
-          if (ic.fspath) ic.fspath = destPath;
-          if (ic.beep) ic.beep = destPath;
-          el.remove();
-          BOS.notify('Moved "' + filename + '" into "' + otherIc.label + '"');
-        });
-      }
+      document.querySelectorAll('.desktop-icon').forEach(other => {
+        if (other === el) return;
+        const r = other.getBoundingClientRect();
+        const over = e2.clientX >= r.left && e2.clientX <= r.right && e2.clientY >= r.top && e2.clientY <= r.bottom;
+        if (!over) return;
+        const otherIc = other._ic;
+        if (!otherIc || !otherIc.fspath) return;
+        const targetNode = OS.fs.resolve(otherIc.fspath);
+        if (!targetNode || targetNode.type !== 'dir') return;
+        if (!ic.fspath && !ic.beep) return;
+        const srcPath = ic.fspath || ic.beep;
+        const filename = srcPath.split('/').pop();
+        const destPath = otherIc.fspath.replace(/\/$/, '') + '/' + filename;
+        const srcNode = OS.fs.resolve(srcPath);
+        if (!srcNode) return;
+        if (srcNode.type === 'file') OS.fs.touch(destPath, srcNode.content);
+        else OS.fs.mkdir(destPath);
+        OS.fs.rm(srcPath);
+        if (ic.fspath) ic.fspath = destPath;
+        if (ic.beep) ic.beep = destPath;
+        el.remove();
+        BOS.notify('Moved "' + filename + '" into "' + otherIc.label + '"');
+      });
     };
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   });
-
-  // HTML5 drag — so File Manager can receive desktop icons as drop targets
-  el.draggable = true;
-  el.addEventListener('dragstart', e => {
-    const srcPath = ic.fspath || ic.beep || null;
-    if (!srcPath) { e.preventDefault(); return; }
-    e.dataTransfer.setData('application/bos-path', srcPath);
-    e.dataTransfer.setData('application/bos-source', 'desktop');
-    e.dataTransfer.effectAllowed = 'move';
-    el.style.opacity = '0.5';
-  });
-  el.addEventListener('dragend', () => { el.style.opacity = ''; });
 
   el._ic = ic; // store ref for DnD target detection
   document.getElementById('desktop').appendChild(el);
@@ -2719,39 +2770,56 @@ desktopEl.addEventListener('drop', e => {
   if (e.target.closest('.window')) return;
   e.preventDefault();
   const srcPath = e.dataTransfer.getData('application/bos-path');
-  const source  = e.dataTransfer.getData('application/bos-source'); // 'desktop' or 'filemanager'
+  const source  = e.dataTransfer.getData('application/bos-source');
   if (!srcPath) return;
   const filename = srcPath.split('/').pop();
   const destPath = '/Desktop/' + filename;
-  if (srcPath === destPath) return; // already on desktop
+  if (srcPath === destPath) return;
   const srcNode = OS.fs.resolve(srcPath);
   if (!srcNode) return;
-  // Move into /Desktop/
   if (srcNode.type === 'file') OS.fs.touch(destPath, srcNode.content);
   else OS.fs.mkdir(destPath);
   OS.fs.rm(srcPath);
-  // Add icon at drop position
-  const icon = srcNode.type === 'dir' ? '📁' : getFileIcon(filename);
-  addDynamicDesktopIcon({ label: filename, icon, fspath: destPath, x: e.clientX - 38, y: e.clientY - 20 });
-  BOS.notify('Moved "' + filename + '" to Desktop');
+  // Parse .beep manifest for real icon and label
+  let icon, label;
+  if (filename.endsWith('.beep')) {
+    try { const m = JSON.parse(srcNode.content); icon = m.icon || '⚡'; label = m.name || filename; }
+    catch(e) { icon = '⚡'; label = filename; }
+  } else {
+    icon = srcNode.type === 'dir' ? '📁' : getFileIcon(filename);
+    label = filename;
+  }
+  const ic = filename.endsWith('.beep')
+    ? { label, icon, beep: destPath, x: e.clientX - 38, y: e.clientY - 20 }
+    : { label, icon, fspath: destPath, x: e.clientX - 38, y: e.clientY - 20 };
+  addDynamicDesktopIcon(ic);
+  // Refresh any open File Manager windows so the source folder updates
+  refreshAllFileManagers();
+  BOS.notify('Moved "' + label + '" to Desktop');
 });
+
+// Refresh all open File Manager windows
+function refreshAllFileManagers() {
+  document.querySelectorAll('[id^="fm-refresh-"]').forEach(btn => btn.click());
+}
 
 // Restore any files/folders the user created in /Desktop/ across sessions
 (function restoreDesktopFiles() {
   const items = OS.fs.ls('/Desktop') || [];
-  // Place icons in a grid starting to the right of the built-in icons
   let col = 0, row = 0;
   const startX = 210, startY = 20, stepY = 100, stepX = 90;
   items.forEach(item => {
     const fspath = '/Desktop/' + item.name;
-    const icon = item.type === 'dir' ? '📁' : getFileIcon(item.name);
-    addDynamicDesktopIcon({
-      label: item.name,
-      icon,
-      fspath,
-      x: startX + col * stepX,
-      y: startY + row * stepY,
-    });
+    let icon, label, ic;
+    if (item.name.endsWith('.beep')) {
+      try { const m = JSON.parse(item.content); icon = m.icon || '⚡'; label = m.name || item.name; }
+      catch(e) { icon = '⚡'; label = item.name; }
+      ic = { label, icon, beep: fspath, x: startX + col * stepX, y: startY + row * stepY };
+    } else {
+      icon = item.type === 'dir' ? '📁' : getFileIcon(item.name);
+      ic = { label: item.name, icon, fspath, x: startX + col * stepX, y: startY + row * stepY };
+    }
+    addDynamicDesktopIcon(ic);
     row++;
     if (startY + row * stepY > window.innerHeight - 150) { row = 0; col++; }
   });
