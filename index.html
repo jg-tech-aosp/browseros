@@ -595,6 +595,7 @@
 // CORE OS STATE
 // ============================================================
 const OS = {
+  version: '1.6.4',
   windows: {},
   zIndex: 100,
   activeWin: null,
@@ -739,22 +740,28 @@ const CALCULATOR_BEEP = JSON.stringify({
 
 const ABOUT_BEEP = JSON.stringify({
   name: "About BrowserOS", version: "1.0", icon: "\u2139\uFE0F", author: "BrowserOS",
-  width: 460, height: 340,
+  width: 500, height: 480,
   main: [
-    "container.style.cssText='padding:24px;font-size:13px;line-height:1.8;overflow:auto;color:var(--text)';",
-    "container.innerHTML='<h1 style=\"font-size:22px;margin-bottom:8px\">🖥️ BrowserOS</h1>'",
-    "  +'<div style=\"color:var(--accent);font-size:13px;margin-bottom:14px\">Version 1.0.0 &mdash; Built with HTML5 &amp; Vanilla JS</div>'",
-    "  +'<p>A fully functional operating system running in your browser.</p>'",
-    "  +'<p style=\"margin-top:10px\"><b>Features:</b><br>'",
-    "  +'&bull; Real filesystem (localStorage-backed)<br>'",
-    "  +'&bull; Draggable, resizable windows<br>'",
-    "  +'&bull; File Manager, Text Editor, Terminal<br>'",
-    "  +'&bull; Calculator, Browser, Paint<br>'",
-    "  +'&bull; .beep executable format<br>'",
-    "  +'&bull; App-specific right-click menus<br>'",
-    "  +'&bull; Settings with live theme changes<br>'",
-    "  +'&bull; Start menu, desktop icons, DnD</p>'",
-    "  +'<p style=\"margin-top:14px;color:var(--text-dim);font-size:12px\">Right-click for options.</p>';"
+    "var ver=typeof OS!=='undefined'?OS.version:'1.6.4';",
+    "container.style.cssText='padding:24px;font-size:13px;line-height:1.7;overflow:auto;color:var(--text)';",
+    "container.innerHTML=",
+    "  '<h1 style=\"font-size:22px;margin-bottom:4px\">🖥️ BrowserOS</h1>'",
+    "  +'<div style=\"color:var(--accent);font-size:13px;margin-bottom:16px\">Version '+ver+' &mdash; Built with HTML5 &amp; Vanilla JS</div>'",
+    "  +'<p style=\"margin-bottom:16px\">A fully functional operating system running in a single HTML file.</p>'",
+    "  +'<div style=\"font-weight:bold;margin-bottom:8px\">Changelog</div>'",
+    "  +'<div style=\"font-family:monospace;font-size:12px;background:rgba(0,0,0,0.2);border-radius:6px;padding:12px;line-height:2\">'",
+    "  +'<span style=\"color:var(--accent)\">1.6.4</span> Fix FM blank space right-click not appearing<br>'",
+    "  +'<span style=\"color:var(--accent)\">1.6.3</span> Fix image viewer actually renders saved images<br>'",
+    "  +'<span style=\"color:var(--accent)\">1.6.2</span> Font picker replaces broken font size slider<br>'",
+    "  +'<span style=\"color:var(--accent)\">1.6.1</span> Fix .beep drag-and-drop preserves filename<br>'",
+    "  +'<span style=\"color:var(--accent)\">1.6.0</span> Desktop files persist across reloads<br>'",
+    "  +'<span style=\"color:var(--accent)\">1.5.0</span> Desktop \u2194 File Manager drag and drop<br>'",
+    "  +'<span style=\"color:var(--accent)\">1.4.0</span> FM cut/copy/paste, DnD within FM, blank space right-click<br>'",
+    "  +'<span style=\"color:var(--accent)\">1.3.0</span> Import files from host OS into File Manager<br>'",
+    "  +'<span style=\"color:var(--accent)\">1.2.0</span> Calculator, Browser, About migrated to .beep<br>'",
+    "  +'<span style=\"color:var(--accent)\">1.1.0</span> .beep executable format + Paint app<br>'",
+    "  +'<span style=\"color:var(--accent)\">1.0.0</span> Initial release</div>'",
+    "  +'<div style=\"margin-top:16px;color:var(--text-dim);font-size:11px\">Licensed under AGPL-3.0 &mdash; github.com/jg-tech-aosp/BrowserOS</div>';"
   ].join("\n")
 });
 
@@ -882,12 +889,12 @@ OS.fs = new FileSystem();
   const installs = [
     { path: '/Apps/paint.beep',      content: PAINT_BEEP },
     { path: '/Apps/calculator.beep', content: CALCULATOR_BEEP },
-    { path: '/Apps/about.beep',      content: ABOUT_BEEP },
+    { path: '/Apps/about.beep',      content: ABOUT_BEEP, force: true },
     { path: '/Apps/browser.beep',    content: BROWSER_BEEP },
   ];
   installs.forEach(function(a) {
     const node = OS.fs.resolve(a.path);
-    if (!node || node.content.startsWith('__')) OS.fs.touch(a.path, a.content);
+    if (!node || node.content.startsWith('__') || a.force) OS.fs.touch(a.path, a.content);
   });
 })();
 
@@ -1129,6 +1136,11 @@ function mountFileManager(container, winId, startPath) {
     render();
   }
 
+  // Clipboard scoped to this file manager instance
+  let clipboard = null; // { op: 'cut'|'copy', srcPath, name }
+
+  function fullPath(name) { return cwd.replace(/\/$/, '') + '/' + name; }
+
   function render() {
     document.getElementById('fm-path-' + winId).value = cwd || '/';
     const items = OS.fs.ls(cwd);
@@ -1144,44 +1156,134 @@ function mountFileManager(container, winId, startPath) {
     `).join('');
 
     grid.querySelectorAll('.fm-item').forEach(el => {
-      el.onclick = () => {
+      const name = el.dataset.name;
+      const type = el.dataset.type;
+
+      el.onclick = e => {
         grid.querySelectorAll('.fm-item').forEach(i => i.classList.remove('selected'));
         el.classList.add('selected');
-        selected = el.dataset.name;
-        document.getElementById('fm-status-' + winId).textContent = selected;
+        selected = name;
+        document.getElementById('fm-status-' + winId).textContent = name;
+        e.stopPropagation();
       };
+
       el.ondblclick = () => {
-        const name = el.dataset.name;
-        const type = el.dataset.type;
-        if (type === 'dir') {
-          navigate(cwd.replace(/\/$/,'') + '/' + name);
-        } else {
-          openFileWith(cwd.replace(/\/$/,'') + '/' + name, name);
-        }
+        if (type === 'dir') navigate(fullPath(name));
+        else openFileWith(fullPath(name), name);
       };
+
+      // Right-click on item
       el.oncontextmenu = e => {
         e.preventDefault();
+        e.stopPropagation();
+        grid.querySelectorAll('.fm-item').forEach(i => i.classList.remove('selected'));
+        el.classList.add('selected');
+        selected = name;
         showCtxMenu(e.clientX, e.clientY, [
           { label: '📂 Open', action: () => {
-            if (el.dataset.type === 'dir') navigate(cwd.replace(/\/$/,'') + '/' + el.dataset.name);
-            else openFileWith(cwd.replace(/\/$/,'') + '/' + el.dataset.name, el.dataset.name);
+            if (type === 'dir') navigate(fullPath(name));
+            else openFileWith(fullPath(name), name);
           }},
+          'sep',
+          { label: '✂️ Cut', action: () => {
+            clipboard = { op: 'cut', srcPath: fullPath(name), name };
+            document.getElementById('fm-status-' + winId).textContent = 'Cut: ' + name;
+          }},
+          { label: '📋 Copy', action: () => {
+            clipboard = { op: 'copy', srcPath: fullPath(name), name };
+            document.getElementById('fm-status-' + winId).textContent = 'Copied: ' + name;
+          }},
+          'sep',
           { label: '✏️ Rename', action: () => {
-            const nn = prompt('New name:', el.dataset.name);
-            if (nn && nn !== el.dataset.name) {
-              OS.fs.rename(cwd.replace(/\/$/,'') + '/' + el.dataset.name, nn);
-              render();
-            }
+            const nn = prompt('New name:', name);
+            if (nn && nn !== name) { OS.fs.rename(fullPath(name), nn); render(); }
           }},
           { label: '🗑️ Delete', action: () => {
-            if (confirm('Delete "' + el.dataset.name + '"?')) {
-              OS.fs.rm(cwd.replace(/\/$/,'') + '/' + el.dataset.name);
-              render();
-            }
+            if (confirm('Delete "' + name + '"?')) { OS.fs.rm(fullPath(name)); render(); }
           }},
         ]);
       };
+
+      // Drag-and-drop within grid — drag item onto a folder, or out to desktop
+      el.draggable = true;
+      el.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('text/plain', name);
+        e.dataTransfer.setData('application/bos-path', fullPath(name));
+        e.dataTransfer.setData('application/bos-source', 'filemanager');
+        e.dataTransfer.effectAllowed = 'move';
+        el.style.opacity = '0.5';
+      });
+      el.addEventListener('dragend', () => { el.style.opacity = ''; });
+
+      if (type === 'dir') {
+        el.addEventListener('dragover', e => {
+          e.preventDefault();
+          el.style.outline = '2px solid var(--accent)';
+          el.style.background = 'rgba(0,120,212,0.2)';
+        });
+        el.addEventListener('dragleave', () => {
+          el.style.outline = '';
+          el.style.background = '';
+        });
+        el.addEventListener('drop', e => {
+          e.preventDefault();
+          el.style.outline = '';
+          el.style.background = '';
+          const srcName = e.dataTransfer.getData('text/plain');
+          if (!srcName || srcName === name) return;
+          const srcPath = fullPath(srcName);
+          const destPath = fullPath(name) + '/' + srcName;
+          const srcNode = OS.fs.resolve(srcPath);
+          if (!srcNode) return;
+          if (srcNode.type === 'file') OS.fs.touch(destPath, srcNode.content);
+          else OS.fs.mkdir(destPath);
+          OS.fs.rm(srcPath);
+          render();
+          BOS.notify('Moved "' + srcName + '" into "' + name + '"');
+        });
+      }
     });
+
+    // Right-click on blank space — attached to fm-main so it catches empty area below items too
+    container.querySelector('.fm-main').oncontextmenu = e => {
+      if (e.target.closest('.fm-item')) return; // item has its own handler
+      e.preventDefault();
+      e.stopPropagation();
+      showCtxMenu(e.clientX, e.clientY, [
+        { label: '📁 New Folder', action: () => {
+          const n = prompt('Folder name:');
+          if (n) { OS.fs.mkdir(fullPath(n)); render(); }
+        }},
+        { label: '📄 New File', action: () => {
+          const n = prompt('File name:', 'untitled.txt');
+          if (n) { OS.fs.touch(fullPath(n), ''); render(); }
+        }},
+        'sep',
+        ...(clipboard ? [{
+          label: (clipboard.op === 'cut' ? '📋 Paste (move) "' : '📋 Paste (copy) "') + clipboard.name + '"',
+          action: () => {
+            const destPath = fullPath(clipboard.name);
+            const srcNode = OS.fs.resolve(clipboard.srcPath);
+            if (!srcNode) { clipboard = null; return; }
+            if (srcNode.type === 'file') OS.fs.touch(destPath, srcNode.content);
+            else OS.fs.mkdir(destPath);
+            if (clipboard.op === 'cut') OS.fs.rm(clipboard.srcPath);
+            clipboard = null;
+            render();
+          }
+        }] : [{ label: '📋 Paste (nothing copied)', action: () => {} }]),
+        'sep',
+        { label: '⟳ Refresh', action: render },
+      ]);
+    };
+
+    // Click blank space = deselect
+    grid.onclick = e => {
+      if (!e.target.closest('.fm-item')) {
+        grid.querySelectorAll('.fm-item').forEach(i => i.classList.remove('selected'));
+        selected = null;
+      }
+    };
 
     renderSidebar();
     const count = items.length;
@@ -1250,6 +1352,33 @@ function mountFileManager(container, winId, startPath) {
     e.preventDefault();
     fmMain.style.outline = '';
     fmMain.style.background = '';
+
+    // Drop from desktop icon (bos-path)
+    if (e.dataTransfer.types.includes('application/bos-path')) {
+      const srcPath = e.dataTransfer.getData('application/bos-path');
+      const source  = e.dataTransfer.getData('application/bos-source');
+      if (srcPath) {
+        const filename = srcPath.split('/').pop();
+        const destPath = cwd.replace(/\/$/, '') + '/' + filename;
+        if (srcPath === destPath) return;
+        const srcNode = OS.fs.resolve(srcPath);
+        if (!srcNode) return;
+        if (srcNode.type === 'file') OS.fs.touch(destPath, srcNode.content);
+        else OS.fs.mkdir(destPath);
+        OS.fs.rm(srcPath);
+        // If it came from desktop, remove the desktop icon
+        if (source === 'desktop') {
+          document.querySelectorAll('.desktop-icon').forEach(icon => {
+            if (icon._ic && (icon._ic.fspath === srcPath || icon._ic.beep === srcPath)) icon.remove();
+          });
+        }
+        render();
+        BOS.notify('Moved "' + filename + '" to ' + cwd);
+        return;
+      }
+    }
+
+    // Drop from host OS (external files)
     const files = Array.from(e.dataTransfer.files);
     if (!files.length) return;
     const status = document.getElementById('fm-status-' + winId);
@@ -1952,7 +2081,7 @@ function mountSettings(container, winId) {
           <h2>System</h2>
           <div class="settings-row">
             <div><div class="settings-row-label">OS Version</div></div>
-            <div style="color:var(--text-dim);font-size:13px">BrowserOS 1.0.0</div>
+            <div style="color:var(--text-dim);font-size:13px">BrowserOS ${OS.version}</div>
           </div>
           <div class="settings-row">
             <div><div class="settings-row-label">Engine</div></div>
@@ -2217,7 +2346,7 @@ function addDynamicDesktopIcon(ic) {
     showCtxMenu(e.clientX, e.clientY, items);
   });
 
-  // Drag — move icon, and support dropping onto folder icons
+  // Mouse drag (existing — for moving icon position + dropping onto desktop folders)
   let sx, sy, sl, st, didDrag = false;
   el.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
@@ -2252,7 +2381,7 @@ function addDynamicDesktopIcon(ic) {
       el.style.opacity = '';
       OS._draggingIcon = null;
 
-      // Check if dropped onto a folder
+      // Check if dropped onto a desktop folder icon
       if (didDrag) {
         document.querySelectorAll('.desktop-icon').forEach(other => {
           other.style.outline = '';
@@ -2265,21 +2394,15 @@ function addDynamicDesktopIcon(ic) {
           if (!otherIc || !otherIc.fspath) return;
           const targetNode = OS.fs.resolve(otherIc.fspath);
           if (!targetNode || targetNode.type !== 'dir') return;
-          // Only move FS-backed icons (not system app shortcuts)
           if (!ic.fspath && !ic.beep) return;
           const srcPath = ic.fspath || ic.beep;
-          const filename = srcPath.split('/').pop(); // actual filename, e.g. "paint.beep"
+          const filename = srcPath.split('/').pop();
           const destPath = otherIc.fspath.replace(/\/$/, '') + '/' + filename;
-          // Copy + delete (move)
           const srcNode = OS.fs.resolve(srcPath);
           if (!srcNode) return;
-          if (srcNode.type === 'file') {
-            OS.fs.touch(destPath, srcNode.content);
-          } else {
-            OS.fs.mkdir(destPath);
-          }
+          if (srcNode.type === 'file') OS.fs.touch(destPath, srcNode.content);
+          else OS.fs.mkdir(destPath);
           OS.fs.rm(srcPath);
-          // Update ic so future launches use new path
           if (ic.fspath) ic.fspath = destPath;
           if (ic.beep) ic.beep = destPath;
           el.remove();
@@ -2292,12 +2415,82 @@ function addDynamicDesktopIcon(ic) {
     document.addEventListener('mouseup', onUp);
   });
 
+  // HTML5 drag — so File Manager can receive desktop icons as drop targets
+  el.draggable = true;
+  el.addEventListener('dragstart', e => {
+    const srcPath = ic.fspath || ic.beep || null;
+    if (!srcPath) { e.preventDefault(); return; }
+    e.dataTransfer.setData('application/bos-path', srcPath);
+    e.dataTransfer.setData('application/bos-source', 'desktop');
+    e.dataTransfer.effectAllowed = 'move';
+    el.style.opacity = '0.5';
+  });
+  el.addEventListener('dragend', () => { el.style.opacity = ''; });
+
   el._ic = ic; // store ref for DnD target detection
   document.getElementById('desktop').appendChild(el);
   return el;
 }
 
 desktopIcons.forEach(ic => addDynamicDesktopIcon(ic));
+
+// Desktop as drop target — receive files dragged from File Manager
+const desktopEl = document.getElementById('desktop');
+desktopEl.addEventListener('dragover', e => {
+  if (!e.dataTransfer.types.includes('application/bos-path')) return;
+  if (e.target.closest('.window') || e.target.closest('.desktop-icon')) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  desktopEl.style.outline = '2px dashed var(--accent)';
+});
+desktopEl.addEventListener('dragleave', e => {
+  if (!e.relatedTarget || !desktopEl.contains(e.relatedTarget)) {
+    desktopEl.style.outline = '';
+  }
+});
+desktopEl.addEventListener('drop', e => {
+  desktopEl.style.outline = '';
+  if (!e.dataTransfer.types.includes('application/bos-path')) return;
+  if (e.target.closest('.window')) return;
+  e.preventDefault();
+  const srcPath = e.dataTransfer.getData('application/bos-path');
+  const source  = e.dataTransfer.getData('application/bos-source'); // 'desktop' or 'filemanager'
+  if (!srcPath) return;
+  const filename = srcPath.split('/').pop();
+  const destPath = '/Desktop/' + filename;
+  if (srcPath === destPath) return; // already on desktop
+  const srcNode = OS.fs.resolve(srcPath);
+  if (!srcNode) return;
+  // Move into /Desktop/
+  if (srcNode.type === 'file') OS.fs.touch(destPath, srcNode.content);
+  else OS.fs.mkdir(destPath);
+  OS.fs.rm(srcPath);
+  // Add icon at drop position
+  const icon = srcNode.type === 'dir' ? '📁' : getFileIcon(filename);
+  addDynamicDesktopIcon({ label: filename, icon, fspath: destPath, x: e.clientX - 38, y: e.clientY - 20 });
+  BOS.notify('Moved "' + filename + '" to Desktop');
+});
+
+// Restore any files/folders the user created in /Desktop/ across sessions
+(function restoreDesktopFiles() {
+  const items = OS.fs.ls('/Desktop') || [];
+  // Place icons in a grid starting to the right of the built-in icons
+  let col = 0, row = 0;
+  const startX = 210, startY = 20, stepY = 100, stepX = 90;
+  items.forEach(item => {
+    const fspath = '/Desktop/' + item.name;
+    const icon = item.type === 'dir' ? '📁' : getFileIcon(item.name);
+    addDynamicDesktopIcon({
+      label: item.name,
+      icon,
+      fspath,
+      x: startX + col * stepX,
+      y: startY + row * stepY,
+    });
+    row++;
+    if (startY + row * stepY > window.innerHeight - 150) { row = 0; col++; }
+  });
+})();
 
 document.getElementById('desktop').addEventListener('click', e => {
   if (!e.target.closest('.desktop-icon')) {
