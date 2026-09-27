@@ -274,7 +274,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
           let done = 0;
           files.forEach(file => {
             const reader = new FileReader();
-            const isText = file.type.startsWith('text/') || /\.(txt|md|js|json|html|css|csv|xml|svg|beep)$/i.test(file.name);
+            const isText = file.type.startsWith('text/') || /\.(txt|md|js|json|html|css|csv|xml|svg|beep|writer)$/i.test(file.name);
             reader.onload = async e2 => {
               await createFile(fullPath(file.name), e2.target.result);
               done++;
