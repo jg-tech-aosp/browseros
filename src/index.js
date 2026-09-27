@@ -32,6 +32,7 @@ import { registerTextEditor }   from './shell/texteditor.js';
 import { registerTerminal }     from './shell/terminal.js';
 import { registerSysMonitor }   from './shell/sysmonitor.js';
 import { registerPaint }        from './shell/paint.js';
+import { registerImageViewer } from './shell/imageviewer.js';
 import { Desktop }        from './shell/desktop.js';
 import { Taskbar }       from './shell/taskbar.js';
 import { StartMenu }  from './shell/startmenu.js';
@@ -103,6 +104,7 @@ async function boot() {
     registerTerminal({ wm, fs, launcher, kernel, settings });
     registerSysMonitor({ wm, db, kernel, settings, fs });
     registerPaint({ wm, fs });
+    registerImageViewer({ wm, fs });
 
     // ── 7. Shell + Desktop ────────────────────────────────────────────────────
     console.log('[bos] Booting notifications...');
