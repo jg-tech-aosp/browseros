@@ -496,12 +496,20 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
 
       // Receive desktop drags once per File Manager window, not once per render.
       const handleDesktopDrop = async e => {
-        const { path, targetPath, onMoved } = e.detail || {};
-        if (!path) return;
+        const { path, targetPath, targetInstanceId, onMoved } = e.detail || {};
+        if (!path || (targetInstanceId && targetInstanceId !== instanceId)) return;
         const filename = path.split('/').pop();
         const destFolder = targetPath || cwd;
         const destPath = (destFolder === '/' ? '' : destFolder) + '/' + filename;
         if (path === destPath) return;
+
+        const source = await fs.stat(path);
+        const normalizedSource = path.replace(/\/+$/, '');
+        if (source?.type === 'dir' && destPath.startsWith(normalizedSource + '/')) {
+          wm.notify('Cannot move a folder into itself or one of its subfolders');
+          return;
+        }
+
         const result = await fs.move(path, destPath);
         if (!result.ok) {
           wm.notify('Could not move "' + filename + '": ' + result.error);
