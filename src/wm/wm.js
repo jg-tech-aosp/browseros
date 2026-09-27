@@ -28,6 +28,7 @@ const WM_STYLES = `
     --wm-control-hover: rgba(255,255,255,0.14);
     --wm-separator:    rgba(255,255,255,0.1);
     --wm-backdrop-filter: blur(24px);
+    --wm-window-bg: transparent;
     --wm-shadow:       0 8px 32px rgba(0,0,0,0.5);
     --wm-radius:       8px;
     --wm-taskbar-h:    48px;
@@ -57,7 +58,7 @@ const WM_STYLES = `
     position: absolute;
     display: flex;
     flex-direction: column;
-    background: var(--wm-bg);
+    background: var(--wm-window-bg, var(--wm-bg));
     border: 1px solid var(--wm-border);
     border-radius: var(--wm-radius);
     box-shadow: var(--wm-shadow);
@@ -796,10 +797,11 @@ export class WindowManager {
       r.style.setProperty('--wm-bg',           darkMode ? '#1e1e2e' : '#f0f0f5');
       r.style.setProperty('--wm-titlebar',      darkMode ? '#2a2a4a' : '#e0e0f0');
       r.style.setProperty('--wm-titlebar-bg',  darkMode ? (transparency === false ? '#2a2a4a' : 'rgba(42,42,74,0.58)') : (transparency === false ? '#e0e0f0' : 'rgba(224,224,240,0.62)'));
+      r.style.setProperty('--wm-window-bg', transparency === false ? (darkMode ? '#1e1e2e' : '#f0f0f5') : 'transparent');
       r.style.setProperty('--wm-titlebar-txt',  darkMode ? '#e0e0ff' : '#111');
       r.style.setProperty('--wm-text',          darkMode ? '#e0e0ff' : '#111');
       r.style.setProperty('--wm-text-dim',      darkMode ? '#8888aa' : '#666');
-      r.style.setProperty('--wm-border',        darkMode ? '#3a3a5c' : '#ccc');
+      r.style.setProperty('--wm-border',        transparency === false ? (darkMode ? '#3a3a5c' : '#ccc') : (darkMode ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.2)'));
       r.style.setProperty('--wm-hover',         darkMode ? '#2d2d4e' : '#ddd');
       r.style.setProperty('--wm-taskbar-bg',   darkMode ? (transparency === false ? '#0f0c28' : 'rgba(15,12,40,0.58)') : (transparency === false ? '#ebebf5' : 'rgba(235,235,245,0.62)'));
       r.style.setProperty('--wm-panel-bg',     darkMode ? (transparency === false ? '#141428' : 'rgba(20,20,40,0.58)') : (transparency === false ? '#fafaff' : 'rgba(250,250,255,0.64)'));
