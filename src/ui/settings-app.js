@@ -7,7 +7,7 @@
  * Has direct access to the Settings store and kernel for live changes.
  */
 
-export function registerSettingsApp({ wm, settings, kernel, db }) {
+export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
 
   wm.registerSystemApp('settings', {
     title:  'Settings',
@@ -172,6 +172,115 @@ export function registerSettingsApp({ wm, settings, kernel, db }) {
       wpGrid.appendChild(el);
     });
     main.appendChild(wpGrid);
+
+    // Pick an image already stored in BrowserOS instead of importing a new file.
+    var chooseWallpaper = document.createElement('button');
+    chooseWallpaper.type = 'button';
+    chooseWallpaper.textContent = 'Choose picture from Files';
+    chooseWallpaper.style.cssText = 'padding:8px 12px;margin:0 0 12px;border:1px solid var(--wm-border);border-radius:6px;background:var(--wm-hover);color:var(--wm-text);cursor:pointer';
+    main.appendChild(chooseWallpaper);
+
+    var wallpaperPicker = document.createElement('div');
+    wallpaperPicker.style.cssText = 'display:none;border:1px solid var(--wm-border);border-radius:8px;padding:10px;margin-bottom:16px';
+    main.appendChild(wallpaperPicker);
+
+    var pickerPath = '/';
+    async function showWallpaperFolder(path) {
+      pickerPath = path || '/';
+      wallpaperPicker.innerHTML = '';
+      wallpaperPicker.style.display = 'block';
+
+      var toolbar = document.createElement('div');
+      toolbar.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px';
+      var up = document.createElement('button');
+      up.type = 'button';
+      up.textContent = '↑ Up';
+      up.disabled = pickerPath === '/';
+      up.style.cssText = 'padding:5px 8px;border:1px solid var(--wm-border);border-radius:5px;background:var(--wm-hover);color:var(--wm-text);cursor:pointer';
+      up.onclick = function() {
+        var parent = pickerPath.replace(/\\/$/, '').split('/').slice(0, -1).join('/') || '/';
+        showWallpaperFolder(parent);
+      };
+      var pathLabel = document.createElement('span');
+      pathLabel.textContent = pickerPath;
+      pathLabel.style.cssText = 'font-size:12px;color:var(--wm-text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      toolbar.appendChild(up);
+      toolbar.appendChild(pathLabel);
+      wallpaperPicker.appendChild(toolbar);
+
+      var items = await fs.ls(pickerPath) || [];
+      items.sort(function(a, b) {
+        if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      var list = document.createElement('div');
+      list.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;max-height:220px;overflow:auto';
+      wallpaperPicker.appendChild(list);
+
+      var imageItems = items.filter(function(item) {
+        return item.type === 'file' && (/\\.(png|jpe?g|gif|webp|svg)$/i.test(item.name) || (item.mime || '').startsWith('image/'));
+      });
+      var dirs = items.filter(function(item) { return item.type === 'dir'; });
+
+      for (var dir of dirs) {
+        var folderBtn = document.createElement('button');
+        folderBtn.type = 'button';
+        folderBtn.textContent = '📁 ' + dir.name;
+        folderBtn.style.cssText = 'padding:8px;text-align:left;border:1px solid var(--wm-border);border-radius:6px;background:var(--wm-hover);color:var(--wm-text);cursor:pointer';
+        folderBtn.onclick = function(nextPath) { return function() { showWallpaperFolder(nextPath); }; }((pickerPath === '/' ? '' : pickerPath) + '/' + dir.name);
+        list.appendChild(folderBtn);
+      }
+
+      if (!dirs.length && !imageItems.length) {
+        var empty = document.createElement('div');
+        empty.textContent = 'No picture files in this folder.';
+        empty.style.cssText = 'grid-column:1/-1;padding:12px;color:var(--wm-text-dim);font-size:12px';
+        list.appendChild(empty);
+      }
+
+      for (var item of imageItems) {
+        var filePath = (pickerPath === '/' ? '' : pickerPath) + '/' + item.name;
+        var content = await fs.read(filePath);
+        if (content == null) continue;
+        var mime = item.mime && item.mime.startsWith('image/') ? item.mime : ({
+          png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', webp:'image/webp', svg:'image/svg+xml'
+        })[item.name.split('.').pop().toLowerCase()] || 'image/png';
+        var dataUrl;
+        if (/^data:image\\//i.test(content)) dataUrl = content;
+        else if (mime === 'image/svg+xml' && item.encoding !== 'base64') dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(content);
+        else dataUrl = 'data:' + mime + ';base64,' + content.replace(/\\s/g, '');
+
+        var fileBtn = document.createElement('button');
+        fileBtn.type = 'button';
+        fileBtn.title = filePath;
+        fileBtn.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px;text-align:left;border:1px solid var(--wm-border);border-radius:6px;background:var(--wm-hover);color:var(--wm-text);cursor:pointer;min-width:0';
+        var preview = document.createElement('img');
+        preview.src = dataUrl;
+        preview.alt = '';
+        preview.style.cssText = 'width:42px;height:42px;object-fit:cover;border-radius:4px;flex-shrink:0';
+        var fileLabel = document.createElement('span');
+        fileLabel.textContent = item.name;
+        fileLabel.style.cssText = 'font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+        fileBtn.appendChild(preview);
+        fileBtn.appendChild(fileLabel);
+        fileBtn.onclick = async function(wallpaperValue) {
+          return async function() {
+            var wallpaper = 'url("' + wallpaperValue + '") center center / cover no-repeat fixed';
+            await settings.set('wallpaper', wallpaper);
+            kernel.broadcast('themeChanged', settings.getTheme());
+            chooseWallpaper.textContent = 'Choose picture from Files';
+            wallpaperPicker.style.display = 'none';
+          };
+        }(dataUrl);
+        list.appendChild(fileBtn);
+      }
+    }
+
+    chooseWallpaper.onclick = function() {
+      if (wallpaperPicker.style.display === 'none') showWallpaperFolder('/');
+      else wallpaperPicker.style.display = 'none';
+    };
 
     // Dark mode
     main.appendChild(row('Dark Mode', 'Switch between dark and light themes',
