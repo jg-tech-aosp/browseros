@@ -349,8 +349,8 @@ export class FileSystem {
     const node = await this._db.fs.get(src);
     if (!node) return { ok: false, error: `${src} does not exist` };
 
-    if (node.type === 'dir' && dest.startsWith(src + '/')) {
-      return { ok: false, error: 'Cannot move a folder into itself or one of its subfolders' };
+    if (node.type === 'dir' && (src === '/' || dest.startsWith(src + '/'))) {
+      return { ok: false, error: 'Cannot move a folder into itself, a subfolder, or move the filesystem root' };
     }
 
     const destParent = parentPath(dest);
