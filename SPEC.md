@@ -259,6 +259,10 @@ Moving a directory recursively moves its children as well.
 
 The filesystem refuses to overwrite an existing destination and refuses to remove non-empty directories.
 
+## Image file associations
+
+Supported image files (`.apng`, `.avif`, `.bmp`, `.gif`, `.ico`, `.jfif`, `.jpeg`, `.jpg`, `.png`, `.svg`, and `.webp`) open in the native Image Viewer by default from File Manager, Desktop, and Search. File Manager keeps an explicit **Open in Paint** action for editing.
+
 ---
 
 # 6. .beep Applications
@@ -808,7 +812,7 @@ Desktop
 
 The File Manager also implements folder drop targets for moving BrowserOS files.
 
-Supported image files (`.apng`, `.avif`, `.bmp`, `.gif`, `.ico`, `.jfif`, `.jpeg`, `.jpg`, `.png`, `.svg`, and `.webp`) open in the native Image Viewer by default. File Manager keeps an explicit **Open in Paint** action for editing.
+
 
 Host operating-system files are handled separately through the browser's normal `File` drag/drop mechanism and can be imported into the virtual filesystem.
 
