@@ -20,8 +20,9 @@ const PERMISSION_MAP = {
   'fs.read':   { type: 'fs', op: 'read' },
   'fs.stat':   { type: 'fs', op: 'read' },
   'fs.ls':     { type: 'fs', op: 'read' },
-  'fs.write':  { type: 'fs', op: 'write' },
-  'fs.mkdir':  { type: 'fs', op: 'write' },
+  'fs.write':       { type: 'fs', op: 'write' },
+  'fs.writeUnique': { type: 'fs', op: 'write' },
+  'fs.mkdir':       { type: 'fs', op: 'write' },
   'fs.rm':     { type: 'fs', op: 'write' },
   'fs.rename': { type: 'fs', op: 'write' },
   'fs.move':   { type: 'fs', op: 'both' },   // needs read on src, write on dest
