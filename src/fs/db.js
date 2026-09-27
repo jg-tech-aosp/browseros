@@ -65,6 +65,13 @@ function makeFsStore(db) {
       );
     },
 
+    /** Insert a node only when its path is not already present. */
+    async add(node) {
+      return tx(db, ['fs'], 'readwrite', t =>
+        request(t.objectStore('fs').add(node))
+      );
+    },
+
     /** Delete a node by path */
     async delete(path) {
       return tx(db, ['fs'], 'readwrite', t =>
