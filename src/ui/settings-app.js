@@ -240,7 +240,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
       }
 
       for (let item of imageItems) {
-        var filePath = (pickerPath === '/' ? '' : pickerPath) + '/' + item.name;
+        const filePath = (pickerPath === '/' ? '' : pickerPath) + '/' + item.name;
         var content = await fs.read(filePath);
         if (content == null) continue;
         var mime = item.mime && item.mime.startsWith('image/') ? item.mime : ({
