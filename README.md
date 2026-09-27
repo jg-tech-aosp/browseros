@@ -12,7 +12,7 @@
 - **Use desktop apps.** File Manager, Browser, Text Editor, Terminal, Settings, App Store, Paint, Image Viewer, Music Player, System Monitor, Calculator, and Markdown Viewer are included.
 - **Make it yours.** Choose light or dark mode, set an accent color, and use an image from Pictures as your wallpaper.
 - **Move files around.** Drag files between File Manager and the Desktop. Folder moves are checked to prevent moving a folder inside itself, and duplicate filenames get a numbered suffix instead of replacing the original.
-- **Install more apps.** The App Store installs `.beep` packages and checks catalog versions for updates. Apps include tools, creative apps, and games.
+- **Install more apps.** The App Store installs `.beep` packages and checks catalog versions for updates. Current highlights include Writer, Snake, BrowserBricks, Stage, and Clock.
 - **Keep app data.** Files and settings persist in this browser. Sandboxed apps can use private per-app storage where supported.
 
 ## Get started
