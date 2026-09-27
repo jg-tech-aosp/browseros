@@ -20,6 +20,13 @@ const WM_STYLES = `
     --wm-text:         #e0e0ff;
     --wm-text-dim:     #8888aa;
     --wm-hover:        #2d2d4e;
+    --wm-taskbar-bg:   rgba(15,12,40,0.92);
+    --wm-panel-bg:     rgba(20,20,40,0.97);
+    --wm-panel-border: rgba(255,255,255,0.12);
+    --wm-control-bg:   rgba(255,255,255,0.08);
+    --wm-control-border: rgba(255,255,255,0.12);
+    --wm-control-hover: rgba(255,255,255,0.14);
+    --wm-separator:    rgba(255,255,255,0.1);
     --wm-shadow:       0 8px 32px rgba(0,0,0,0.5);
     --wm-radius:       8px;
     --wm-taskbar-h:    48px;
@@ -106,11 +113,11 @@ const WM_STYLES = `
     cursor: pointer;
     font-size: 13px;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(255,255,255,0.08);
+    background: var(--wm-control-bg);
     color: var(--wm-text);
     transition: background 0.12s;
   }
-  .wm-btn:hover         { background: rgba(255,255,255,0.18); }
+  .wm-btn:hover         { background: var(--wm-control-hover); }
   .wm-btn.wm-btn-close:hover { background: #c42b1c; color: #fff; }
 
   .wm-iframe {
@@ -142,9 +149,9 @@ const WM_STYLES = `
     position: absolute;
     bottom: 0; left: 0; right: 0;
     height: var(--wm-taskbar-h);
-    background: rgba(15,12,40,0.92);
+    background: var(--wm-taskbar-bg);
     backdrop-filter: blur(20px);
-    border-top: 1px solid rgba(255,255,255,0.08);
+    border-top: 1px solid var(--wm-panel-border);
     display: flex;
     align-items: center;
     padding: 0 8px;
@@ -169,8 +176,8 @@ const WM_STYLES = `
   .wm-taskbar-btn {
     height: 36px;
     padding: 0 10px;
-    background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: var(--wm-control-bg);
+    border: 1px solid var(--wm-control-border);
     border-radius: 6px;
     color: var(--wm-text);
     cursor: pointer;
@@ -183,7 +190,7 @@ const WM_STYLES = `
     flex-shrink: 0;
   }
   .wm-taskbar-btn.active  { background: rgba(0,120,212,0.35); border-color: var(--wm-accent); }
-  .wm-taskbar-btn:hover   { background: rgba(255,255,255,0.14); }
+  .wm-taskbar-btn:hover   { background: var(--wm-control-hover); }
   .wm-taskbar-btn .wm-running-dot {
     width: 5px; height: 5px; border-radius: 50%;
     background: var(--wm-accent); flex-shrink: 0;
@@ -206,12 +213,12 @@ const WM_STYLES = `
     pointer-events: none;
   }
   .wm-toast {
-    background: rgba(20,20,40,0.97);
-    border: 1px solid rgba(255,255,255,0.12);
+    background: var(--wm-panel-bg);
+    border: 1px solid var(--wm-panel-border);
     border-radius: 8px;
     padding: 10px 16px;
     font-size: 13px;
-    color: #e0e0ff;
+    color: var(--wm-text);
     box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     animation: wm-toast-in 0.2s ease;
     pointer-events: auto;
@@ -784,10 +791,18 @@ export class WindowManager {
     if (darkMode !== undefined) {
       r.style.setProperty('--wm-bg',           darkMode ? '#1e1e2e' : '#f0f0f5');
       r.style.setProperty('--wm-titlebar',      darkMode ? '#2a2a4a' : '#e0e0f0');
+      r.style.setProperty('--wm-titlebar-txt',  darkMode ? '#e0e0ff' : '#111');
       r.style.setProperty('--wm-text',          darkMode ? '#e0e0ff' : '#111');
       r.style.setProperty('--wm-text-dim',      darkMode ? '#8888aa' : '#666');
       r.style.setProperty('--wm-border',        darkMode ? '#3a3a5c' : '#ccc');
       r.style.setProperty('--wm-hover',         darkMode ? '#2d2d4e' : '#ddd');
+      r.style.setProperty('--wm-taskbar-bg',   darkMode ? 'rgba(15,12,40,0.92)' : 'rgba(235,235,245,0.96)');
+      r.style.setProperty('--wm-panel-bg',     darkMode ? 'rgba(20,20,40,0.97)' : 'rgba(250,250,255,0.98)');
+      r.style.setProperty('--wm-panel-border', darkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.14)');
+      r.style.setProperty('--wm-control-bg',   darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)');
+      r.style.setProperty('--wm-control-border', darkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.15)');
+      r.style.setProperty('--wm-control-hover', darkMode ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)');
+      r.style.setProperty('--wm-separator',    darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)');
     }
   }
 
