@@ -21,6 +21,7 @@ const MIME_MAP = {
   csv:  'text/csv',
   xml:  'text/xml',
   svg:  'image/svg+xml',
+  writer: 'application/json',
   png:  'image/png',
   jpg:  'image/jpeg',
   jpeg: 'image/jpeg',
