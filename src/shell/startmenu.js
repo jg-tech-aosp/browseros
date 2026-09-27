@@ -43,7 +43,7 @@ export class StartMenu {
       width:380px;
       max-height:560px;
       background:var(--wm-panel-bg);
-      backdrop-filter:blur(30px);
+      backdrop-filter:var(--wm-backdrop-filter,blur(20px));
       border:1px solid var(--wm-panel-border);
       border-radius:14px;
       box-shadow:0 16px 48px rgba(0,0,0,0.6);
