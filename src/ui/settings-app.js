@@ -265,8 +265,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
         fileBtn.appendChild(preview);
         fileBtn.appendChild(fileLabel);
         fileBtn.onclick = async function() {
-          var wallpaper = 'url("' + dataUrl + '") center center / cover no-repeat fixed';
-          await settings.set('wallpaper', wallpaper);
+          await settings.set('wallpaper', 'fs:' + filePath);
           kernel.broadcast('themeChanged', settings.getTheme());
           chooseWallpaper.textContent = 'Choose picture from Files';
           wallpaperPicker.style.display = 'none';
