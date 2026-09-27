@@ -1,3 +1,5 @@
+import { isImageFile } from './imageviewer.js';
+
 /**
  * BrowserOS v2 — File Manager (Native System Component)
  * src/shell/filemanager.js
@@ -358,8 +360,8 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
           wm.openSystemApp('texteditor', { file: path });
         } else if (['mp3','wav','ogg'].includes(ext)) {
           wm.openSystemApp('musicplayer', { file: path });
-        } else if (['png','jpg','jpeg','gif','webp'].includes(ext)) {
-          wm.notify('Image viewer coming soon');
+        } else if (isImageFile(name)) {
+          wm.openSystemApp('imageviewer', { file: path });
         } else {
           wm.notify('No app to open: ' + name);
         }
@@ -369,7 +371,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
 
       function showItemMenu(x, y, item) {
         const ext = item.name.split('.').pop().toLowerCase();
-        const isImage = ['png','jpg','jpeg','gif','webp'].includes(ext);
+        const isImage = isImageFile(item.name);
         const items = [
           { label: '📂 Open', action: () => {
             if (item.type === 'dir') navigate(fullPath(item.name));
