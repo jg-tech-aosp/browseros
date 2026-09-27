@@ -11,7 +11,7 @@ const STORE_URL = 'https://raw.githubusercontent.com/jg-tech-aosp/BrowserOS-Stor
 
 function compareVersions(a, b) {
   const parse = value => {
-    const match = String(value ?? '').trim().replace(/^v/i, '').match(/^(\\d+(?:\\.\\d+)*)(?:-([0-9A-Za-z.-]+))?(?:\\+[0-9A-Za-z.-]+)?$/);
+    const match = String(value ?? '').trim().replace(/^v/i, '').match(/^(\d+(?:\.\d+)*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/);
     return match ? { numbers: match[1].split('.').map(Number), prerelease: match[2] || '' } : null;
   };
   const left = parse(a);
@@ -185,11 +185,20 @@ export function registerAppStore({ wm, fs, db, launcher }) {
           }
           const requestedPermissions = Array.isArray(manifest.permissions) ? manifest.permissions : [];
           if (!confirmPermissionGrant(manifest.name || app.name, requestedPermissions)) {
-            if (wasInstalled) installing[app.id] = 'done';
-            else delete installing[app.id];
-            btn.textContent = wasInstalled ? '✓ Installed' : 'Install';
+            if (wasInstalled) {
+              installing[app.id] = 'done';
+              const updateAvailable = compareVersions(app.version, installedApps[app.id]?.version) > 0;
+              btn.textContent = updateAvailable ? 'Update to v' + app.version : '✓ Installed';
+              btn.style.background = updateAvailable ? '#0b72c9' : 'rgba(16,124,16,0.3)';
+              btn.onclick = updateAvailable
+                ? () => installApp(app, btn, true)
+                : () => installApp(app, btn, false);
+            } else {
+              delete installing[app.id];
+              btn.textContent = 'Install';
+              btn.onclick = () => installApp(app, btn);
+            }
             btn.disabled = false;
-            btn.onclick = () => installApp(app, btn);
             return;
           }
 
@@ -239,15 +248,19 @@ export function registerAppStore({ wm, fs, db, launcher }) {
         } catch(e) {
           if (wasInstalled) {
             installing[app.id] = 'done';
-            btn.textContent = '✓ Installed';
-            btn.style.background = 'rgba(16,124,16,0.3)';
+            const updateAvailable = compareVersions(app.version, installedApps[app.id]?.version) > 0;
+            btn.textContent = updateAvailable ? 'Update to v' + app.version : '✓ Installed';
+            btn.style.background = updateAvailable ? '#0b72c9' : 'rgba(16,124,16,0.3)';
+            btn.onclick = updateAvailable
+              ? () => installApp(app, btn, true)
+              : () => installApp(app, btn, false);
           } else {
             delete installing[app.id];
             btn.textContent = 'Failed — retry';
             btn.style.background = 'rgba(200,50,50,0.3)';
+            btn.onclick = () => installApp(app, btn);
           }
           btn.disabled = false;
-          btn.onclick = () => installApp(app, btn);
           wm.notify('Install failed: ' + e.message);
           console.error('[appstore] Install failed:', e);
         }
