@@ -84,7 +84,14 @@ export function registerTextEditor({ wm, fs }) {
       async function saveAs() {
         const name = prompt('Save as:', filenameEl.textContent || 'untitled.txt');
         if (!name) return;
-        await save('/Documents/' + name);
+        const result = await fs.writeUnique('/Documents/' + name, ta.value);
+        if (!result.ok) { wm.notify('Save failed: ' + result.error); return; }
+        currentPath = result.path;
+        saved = true;
+        filenameEl.textContent = result.path.split('/').pop();
+        wm.setWindowTitle(instanceId, '📝 ' + filenameEl.textContent);
+        updateStatus();
+        wm.notify('Saved: ' + filenameEl.textContent);
       }
 
       // ── Events ────────────────────────────────────────────────────────────────
