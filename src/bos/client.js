@@ -90,6 +90,18 @@
       move:   (src,  dest)        => send('fs.move',   { src, dest }),
     },
 
+    // ── BOS.storage — private data for this installed app ─────────────────────
+
+    storage: {
+      get: async (key, defaultValue = null) => {
+        const value = await send('storage.get', { key });
+        return value === undefined ? defaultValue : value;
+      },
+      set:    (key, value) => send('storage.set',    { key, value }),
+      remove: (key)        => send('storage.remove', { key }),
+      keys:   ()            => send('storage.keys',   {}),
+    },
+
     // ── BOS.ui ───────────────────────────────────────────────────────────────
 
     ui: {
