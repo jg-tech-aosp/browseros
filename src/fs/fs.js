@@ -238,6 +238,44 @@ export class FileSystem {
   }
 
   /**
+   * Create a new file without replacing an existing file.
+   * Conflicts receive a numbered suffix before the extension.
+   * @returns {Promise<{ok:boolean, path?:string, error?:string}>}
+   */
+  async writeUnique(path, content) {
+    path = normPath(path);
+    const parent = parentPath(path);
+    const parentNode = await this._db.fs.get(parent);
+    if (!parentNode || parentNode.type !== 'dir') {
+      return { ok: false, error: `Parent directory does not exist: ${parent}` };
+    }
+
+    const name = fileName(path);
+    const dot = name.lastIndexOf('.');
+    const stem = dot > 0 ? name.slice(0, dot) : name;
+    const extension = dot > 0 ? name.slice(dot) : '';
+
+    for (let suffix = 0; suffix < 10000; suffix++) {
+      const candidateName = suffix === 0 ? name : `${stem}(${suffix})${extension}`;
+      const candidatePath = (parent === '/' ? '' : parent) + '/' + candidateName;
+      if (await this._db.fs.get(candidatePath)) continue;
+
+      try {
+        await this._db.fs.add(makeFile(candidatePath, content, getMime(candidateName)));
+      } catch (error) {
+        // Another create may have claimed this name between the lookup and insert.
+        if (error?.name === 'ConstraintError') continue;
+        return { ok: false, error: error?.message || String(error) };
+      }
+
+      await this._touchDir(parent);
+      return { ok: true, path: candidatePath };
+    }
+
+    return { ok: false, error: `Could not find an available name for ${path}` };
+  }
+
+  /**
    * Create a directory.
    * @returns {Promise<{ok:boolean, error?:string}>}
    */
