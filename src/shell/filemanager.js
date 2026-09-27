@@ -75,6 +75,8 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
         sidebar.innerHTML = '';
         SIDEBAR_ITEMS.forEach(item => {
           const el = document.createElement('div');
+          el.className = 'bos-fm-sidebar-item';
+          el.dataset.path = item.path;
           el.style.cssText = 'padding:7px 8px;border-radius:4px;cursor:pointer;font-size:13px;transition:background 0.1s;' +
             (cwd === item.path ? 'background:rgba(0,120,212,0.2);color:var(--wm-accent)' : 'color:var(--wm-text)');
           el.textContent = item.label;
@@ -475,18 +477,20 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
 
       // Receive desktop drags once per File Manager window, not once per render.
       const handleDesktopDrop = async e => {
-        const { path } = e.detail || {};
+        const { path, targetPath, onMoved } = e.detail || {};
         if (!path) return;
         const filename = path.split('/').pop();
-        const destPath = fullPath(filename);
+        const destFolder = targetPath || cwd;
+        const destPath = (destFolder === '/' ? '' : destFolder) + '/' + filename;
         if (path === destPath) return;
         const result = await fs.move(path, destPath);
-        if (result?.ok === false) {
+        if (!result.ok) {
           wm.notify('Could not move "' + filename + '": ' + result.error);
           return;
         }
+        if (typeof onMoved === 'function') onMoved(destPath);
         render();
-        wm.notify('Moved "' + filename + '" to ' + cwd);
+        wm.notify('Moved "' + filename + '" to ' + destFolder);
       };
       document.addEventListener('bos:dropOnFM', handleDesktopDrop);
 
