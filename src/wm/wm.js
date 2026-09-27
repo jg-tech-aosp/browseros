@@ -568,12 +568,14 @@ export class WindowManager {
       ghost.style.top  = e.clientY + 'px';
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const overWindow = el?.closest('.wm-window');
+      const overFileManager = el?.closest('.bos-fm-dropzone');
       const desktop = document.getElementById('wm-desktop');
       if (desktop) desktop.style.outline = overWindow ? '' : '2px dashed var(--wm-accent)';
       if (this._dragState) {
         this._dragState.lastX = e.clientX;
         this._dragState.lastY = e.clientY;
         this._dragState.overDesktop = !overWindow;
+        this._dragState.overFileManager = !!overFileManager;
       }
     };
 
@@ -586,7 +588,11 @@ export class WindowManager {
       });
       const desktop = document.getElementById('wm-desktop');
       if (desktop) desktop.style.outline = '';
-      if (this._dragState?.overDesktop) {
+      if (this._dragState?.overFileManager) {
+        document.dispatchEvent(new CustomEvent('bos:dropOnFM', {
+          detail: { path: this._dragState.path, name: this._dragState.name, x: e.clientX, y: e.clientY }
+        }));
+      } else if (this._dragState?.overDesktop) {
         document.dispatchEvent(new CustomEvent('bos:dropOnDesktop', {
           detail: { path: this._dragState.path, name: this._dragState.name, x: e.clientX, y: e.clientY }
         }));
