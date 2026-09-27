@@ -1,3 +1,5 @@
+import { createStorageId, confirmPermissionGrant } from '../apps/launcher.js';
+
 /**
  * BrowserOS v2 — App Store (Native System Component)
  * src/shell/appstore.js
@@ -104,8 +106,6 @@ export function registerAppStore({ wm, fs, db, launcher }) {
             reinstallBtn.onmouseenter = () => reinstallBtn.style.background = 'rgba(255,255,255,0.15)';
             reinstallBtn.onmouseleave = () => reinstallBtn.style.background = 'rgba(255,255,255,0.07)';
             reinstallBtn.onclick = async () => {
-              delete installing[app.id];
-              await db.apps.delete(app.id);
               await installApp(app, installBtn);
             };
             card.appendChild(topRow);
@@ -129,6 +129,7 @@ export function registerAppStore({ wm, fs, db, launcher }) {
 
       // ── Install ───────────────────────────────────────────────────────────────
       async function installApp(app, btn) {
+        const wasInstalled = installing[app.id] === 'done';
         installing[app.id] = 'loading';
         btn.textContent = 'Downloading...';
         btn.style.background = 'rgba(255,255,255,0.1)';
@@ -154,6 +155,18 @@ export function registerAppStore({ wm, fs, db, launcher }) {
 
           // Store directly in apps DB (same as seedInboxApps)
           const manifest = JSON.parse(await manifestFile.async('string'));
+          const requestedPermissions = Array.isArray(manifest.permissions) ? manifest.permissions : [];
+          if (!confirmPermissionGrant(manifest.name || app.name, requestedPermissions)) {
+            if (wasInstalled) installing[app.id] = 'done';
+            else delete installing[app.id];
+            btn.textContent = wasInstalled ? '✓ Installed' : 'Install';
+            btn.disabled = false;
+            btn.onclick = () => installApp(app, btn);
+            return;
+          }
+
+          const previous = await db.apps.get(app.id);
+          if (previous?.storageId) await db.appData.clear(previous.storageId);
           const appRecord = {
             id:          app.id,
             path:        '/Apps/' + app.id + '.beep',
@@ -161,7 +174,9 @@ export function registerAppStore({ wm, fs, db, launcher }) {
             version:     manifest.version,
             icon:        null,
             emoji:       manifest.emoji || app.emoji || '⚡',
-            permissions: manifest.permissions || [],
+            permissions: requestedPermissions,
+            requestedPermissions,
+            storageId:   createStorageId(),
             events:      manifest.events      || [],
             entry:       manifest.entry,
             bos:         manifest.bos,
