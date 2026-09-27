@@ -502,7 +502,8 @@ Applications are intended to use `BOS.*` rather than calling `postMessage` direc
 await BOS.fs.read(path)
 await BOS.fs.stat(path)
 await BOS.fs.ls(path)
-await BOS.fs.write(path, content)
+await BOS.fs.write(path, content)       // create or overwrite at an exact path
+await BOS.fs.writeUnique(path, content) // create without replacing; returns the chosen path
 await BOS.fs.mkdir(path)
 await BOS.fs.rm(path)
 await BOS.fs.rename(path, newName)
