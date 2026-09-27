@@ -198,7 +198,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
       up.disabled = pickerPath === '/';
       up.style.cssText = 'padding:5px 8px;border:1px solid var(--wm-border);border-radius:5px;background:var(--wm-hover);color:var(--wm-text);cursor:pointer';
       up.onclick = function() {
-        var parent = pickerPath.replace(/\\/$/, '').split('/').slice(0, -1).join('/') || '/';
+        var parent = pickerPath.split('/').slice(0, -1).join('/') || '/';
         showWallpaperFolder(parent);
       };
       var pathLabel = document.createElement('span');
@@ -219,7 +219,8 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
       wallpaperPicker.appendChild(list);
 
       var imageItems = items.filter(function(item) {
-        return item.type === 'file' && (/\\.(png|jpe?g|gif|webp|svg)$/i.test(item.name) || (item.mime || '').startsWith('image/'));
+        var ext = item.name.split('.').pop().toLowerCase();
+        return item.type === 'file' && (['png','jpg','jpeg','gif','webp','svg'].includes(ext) || (item.mime || '').startsWith('image/'));
       });
       var dirs = items.filter(function(item) { return item.type === 'dir'; });
 
@@ -239,17 +240,17 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
         list.appendChild(empty);
       }
 
-      for (var item of imageItems) {
+      for (let item of imageItems) {
         var filePath = (pickerPath === '/' ? '' : pickerPath) + '/' + item.name;
         var content = await fs.read(filePath);
         if (content == null) continue;
         var mime = item.mime && item.mime.startsWith('image/') ? item.mime : ({
           png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', webp:'image/webp', svg:'image/svg+xml'
         })[item.name.split('.').pop().toLowerCase()] || 'image/png';
-        var dataUrl;
-        if (/^data:image\\//i.test(content)) dataUrl = content;
+        let dataUrl;
+        if (content.toLowerCase().startsWith('data:image/')) dataUrl = content;
         else if (mime === 'image/svg+xml' && item.encoding !== 'base64') dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(content);
-        else dataUrl = 'data:' + mime + ';base64,' + content.replace(/\\s/g, '');
+        else dataUrl = 'data:' + mime + ';base64,' + content.replaceAll(' ', '').replaceAll('\n', '').replaceAll('\r', '');
 
         var fileBtn = document.createElement('button');
         fileBtn.type = 'button';
@@ -264,15 +265,13 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
         fileLabel.style.cssText = 'font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
         fileBtn.appendChild(preview);
         fileBtn.appendChild(fileLabel);
-        fileBtn.onclick = async function(wallpaperValue) {
-          return async function() {
-            var wallpaper = 'url("' + wallpaperValue + '") center center / cover no-repeat fixed';
-            await settings.set('wallpaper', wallpaper);
-            kernel.broadcast('themeChanged', settings.getTheme());
-            chooseWallpaper.textContent = 'Choose picture from Files';
-            wallpaperPicker.style.display = 'none';
-          };
-        }(dataUrl);
+        fileBtn.onclick = async function() {
+          var wallpaper = 'url("' + dataUrl + '") center center / cover no-repeat fixed';
+          await settings.set('wallpaper', wallpaper);
+          kernel.broadcast('themeChanged', settings.getTheme());
+          chooseWallpaper.textContent = 'Choose picture from Files';
+          wallpaperPicker.style.display = 'none';
+        };
         list.appendChild(fileBtn);
       }
     }
