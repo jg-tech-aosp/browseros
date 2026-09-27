@@ -12,6 +12,7 @@ const DEFAULTS = {
   wallpaper:  'linear-gradient(135deg, #0f0c29, #302b63, #24243e)',
   font:       "'Segoe UI', system-ui, sans-serif",
   darkMode:   true,
+  transparency: true,
   showClock:  true,
   pinnedApps: ['filemanager', 'texteditor', 'terminal', 'calculator', 'browser', 'paint', 'appstore', 'musicplayer', 'markdownviewer', 'sysmonitor'],
   userProfile: { name: 'User', avatar: null },
@@ -44,6 +45,7 @@ export class Settings {
       wallpaper: this._cache.wallpaper,
       font:      this._cache.font,
       darkMode:  this._cache.darkMode,
+      transparency: this._cache.transparency,
     };
   }
 
