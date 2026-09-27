@@ -166,7 +166,6 @@ export function registerAppStore({ wm, fs, db, launcher }) {
           }
 
           const previous = await db.apps.get(app.id);
-          if (previous?.storageId) await db.appData.clear(previous.storageId);
           const appRecord = {
             id:          app.id,
             path:        '/Apps/' + app.id + '.beep',
@@ -188,6 +187,7 @@ export function registerAppStore({ wm, fs, db, launcher }) {
           };
 
           await db.apps.put(appRecord);
+          if (previous?.storageId) await db.appData.clear(previous.storageId);
 
           installing[app.id] = 'done';
           btn.textContent = '✓ Installed';
