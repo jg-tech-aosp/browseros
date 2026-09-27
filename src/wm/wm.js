@@ -27,7 +27,7 @@ const WM_STYLES = `
     --wm-control-border: rgba(255,255,255,0.12);
     --wm-control-hover: rgba(255,255,255,0.14);
     --wm-separator:    rgba(255,255,255,0.1);
-    --wm-backdrop-filter: blur(20px);
+    --wm-backdrop-filter: blur(24px);
     --wm-shadow:       0 8px 32px rgba(0,0,0,0.5);
     --wm-radius:       8px;
     --wm-taskbar-h:    48px;
@@ -86,7 +86,8 @@ const WM_STYLES = `
   }
   .wm-titlebar {
     height: 38px;
-    background: var(--wm-titlebar);
+    background: var(--wm-titlebar-bg, var(--wm-titlebar));
+    backdrop-filter: var(--wm-backdrop-filter, blur(24px));
     display: flex;
     align-items: center;
     padding: 0 10px;
@@ -153,6 +154,7 @@ const WM_STYLES = `
     background: var(--wm-taskbar-bg);
     backdrop-filter: var(--wm-backdrop-filter);
     border-top: 1px solid var(--wm-panel-border);
+    transition: background-color 0.2s, backdrop-filter 0.2s;
     display: flex;
     align-items: center;
     padding: 0 8px;
@@ -221,6 +223,7 @@ const WM_STYLES = `
     font-size: 13px;
     color: var(--wm-text);
     box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    backdrop-filter: var(--wm-backdrop-filter, blur(24px));
     animation: wm-toast-in 0.2s ease;
     pointer-events: auto;
     max-width: 300px;
@@ -792,19 +795,20 @@ export class WindowManager {
     if (darkMode !== undefined) {
       r.style.setProperty('--wm-bg',           darkMode ? '#1e1e2e' : '#f0f0f5');
       r.style.setProperty('--wm-titlebar',      darkMode ? '#2a2a4a' : '#e0e0f0');
+      r.style.setProperty('--wm-titlebar-bg',  darkMode ? (transparency === false ? '#2a2a4a' : 'rgba(42,42,74,0.58)') : (transparency === false ? '#e0e0f0' : 'rgba(224,224,240,0.62)'));
       r.style.setProperty('--wm-titlebar-txt',  darkMode ? '#e0e0ff' : '#111');
       r.style.setProperty('--wm-text',          darkMode ? '#e0e0ff' : '#111');
       r.style.setProperty('--wm-text-dim',      darkMode ? '#8888aa' : '#666');
       r.style.setProperty('--wm-border',        darkMode ? '#3a3a5c' : '#ccc');
       r.style.setProperty('--wm-hover',         darkMode ? '#2d2d4e' : '#ddd');
-      r.style.setProperty('--wm-taskbar-bg',   darkMode ? (transparency === false ? '#0f0c28' : 'rgba(15,12,40,0.72)') : (transparency === false ? '#ebebf5' : 'rgba(235,235,245,0.78)'));
-      r.style.setProperty('--wm-panel-bg',     darkMode ? (transparency === false ? '#141428' : 'rgba(20,20,40,0.78)') : (transparency === false ? '#fafaff' : 'rgba(250,250,255,0.82)'));
+      r.style.setProperty('--wm-taskbar-bg',   darkMode ? (transparency === false ? '#0f0c28' : 'rgba(15,12,40,0.58)') : (transparency === false ? '#ebebf5' : 'rgba(235,235,245,0.62)'));
+      r.style.setProperty('--wm-panel-bg',     darkMode ? (transparency === false ? '#141428' : 'rgba(20,20,40,0.58)') : (transparency === false ? '#fafaff' : 'rgba(250,250,255,0.64)'));
       r.style.setProperty('--wm-panel-border', darkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.14)');
       r.style.setProperty('--wm-control-bg',   darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)');
       r.style.setProperty('--wm-control-border', darkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.15)');
       r.style.setProperty('--wm-control-hover', darkMode ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)');
       r.style.setProperty('--wm-separator',    darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)');
-      r.style.setProperty('--wm-backdrop-filter', transparency === false ? 'none' : 'blur(20px)');
+      r.style.setProperty('--wm-backdrop-filter', transparency === false ? 'none' : 'blur(24px)');
     }
   }
 
