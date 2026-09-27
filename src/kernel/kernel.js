@@ -116,6 +116,12 @@ export class Kernel {
         return null;
       }
 
+      case 'fs.writeUnique': {
+        const res = await this._fs.writeUnique(payload.path, payload.content);
+        if (!res.ok) throw new Error(res.error);
+        return res.path;
+      }
+
       case 'fs.mkdir': {
         const res = await this._fs.mkdir(payload.path);
         if (!res.ok) throw new Error(res.error);
