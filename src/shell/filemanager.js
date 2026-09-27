@@ -497,7 +497,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
       // Receive desktop drags once per File Manager window, not once per render.
       const handleDesktopDrop = async e => {
         const { path, targetPath, targetInstanceId, onMoved } = e.detail || {};
-        if (!path || (targetInstanceId && targetInstanceId !== instanceId)) return;
+        if (!path || !targetInstanceId || targetInstanceId !== instanceId) return;
         const filename = path.split('/').pop();
         const destFolder = targetPath || cwd;
         const destPath = (destFolder === '/' ? '' : destFolder) + '/' + filename;
