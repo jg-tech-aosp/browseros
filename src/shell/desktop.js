@@ -233,6 +233,7 @@ export class Desktop {
   }
 
   _fileIcon(name) {
+    if (isImageFile(name)) return '🖼️';
     const ext = name.split('.').pop().toLowerCase();
     const map = {
       txt:'📄', md:'📄', js:'📜', html:'🌐', css:'🎨',
