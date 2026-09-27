@@ -16,6 +16,13 @@
 import { checkPermission, hasEvent } from './permissions.js';
 import { Registry }                  from './registry.js';
 
+function validateStorageKey(key) {
+  if (typeof key !== 'string' || key.length < 1 || key.length > 128 || key.charCodeAt(0) === 0) {
+    throw new Error('Storage key must be a 1–128 character string');
+  }
+  return key;
+}
+
 export class Kernel {
   /**
    * @param {object} opts
@@ -146,6 +153,30 @@ export class Kernel {
         return null;
       }
 
+      // ── App-private persistent storage ──────────────────────────────────────
+
+      case 'storage.get': {
+        if (!inst.storageId) throw new Error('App storage is unavailable');
+        return this._db.appData.get(inst.storageId, validateStorageKey(payload.key));
+      }
+
+      case 'storage.set': {
+        if (!inst.storageId) throw new Error('App storage is unavailable');
+        await this._db.appData.set(inst.storageId, validateStorageKey(payload.key), payload.value);
+        return null;
+      }
+
+      case 'storage.remove': {
+        if (!inst.storageId) throw new Error('App storage is unavailable');
+        await this._db.appData.remove(inst.storageId, validateStorageKey(payload.key));
+        return null;
+      }
+
+      case 'storage.keys': {
+        if (!inst.storageId) throw new Error('App storage is unavailable');
+        return this._db.appData.keys(inst.storageId);
+      }
+
       // ── UI — passive ────────────────────────────────────────────────────────
 
       case 'ui.notify': {
@@ -228,6 +259,7 @@ export class Kernel {
         const app = await this._db.apps.get(payload.id);
         if (!app) throw new Error(`App not found: ${payload.id}`);
         if (app.protected) throw new Error(`Cannot uninstall protected app: ${payload.id}`);
+        if (app.storageId) await this._db.appData.clear(app.storageId);
         await this._db.apps.delete(payload.id);
         // Notify taskbar to update
         this._wm.onAppUninstalled(payload.id);
