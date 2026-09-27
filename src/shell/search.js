@@ -259,10 +259,20 @@ export class Search {
         try { await this._launcher.launchById(result.appId); }
         catch(e) { this._wm.notify('Failed to launch: ' + e.message); }
         break;
-      case 'file':
-        // Open in appropriate app
-        document.dispatchEvent(new CustomEvent('bos:openFile', { detail: { path: result.path } }));
+      case 'file': {
+        const ext = result.path.split('.').pop().toLowerCase();
+        if (ext === 'writer') {
+          const app = await this._db.apps.get('writer');
+          if (!app) this._wm.notify('Install Writer from the App Store to open this document');
+          else {
+            try { await this._launcher.launchById('writer', { file: result.path }); }
+            catch (error) { this._wm.notify('Could not open Writer: ' + error.message); }
+          }
+        } else {
+          document.dispatchEvent(new CustomEvent('bos:openFile', { detail: { path: result.path } }));
+        }
         break;
+      }
       case 'setting':
         this._wm.openSystemApp('settings');
         break;
