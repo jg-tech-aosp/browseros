@@ -17,7 +17,7 @@ import { checkPermission, hasEvent } from './permissions.js';
 import { Registry }                  from './registry.js';
 
 function validateStorageKey(key) {
-  if (typeof key !== 'string' || key.length < 1 || key.length > 128 || key.charCodeAt(0) === 0) {
+  if (typeof key !== 'string' || key.length < 1 || key.length > 128 || key.includes(String.fromCharCode(0))) {
     throw new Error('Storage key must be a 1–128 character string');
   }
   return key;
