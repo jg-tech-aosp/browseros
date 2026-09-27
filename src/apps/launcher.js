@@ -254,8 +254,6 @@ export class Launcher {
     if (!isProtected && !confirmPermissionGrant(manifest.name, manifest.permissions)) {
       throw new Error('Permission request declined');
     }
-    if (existing?.storageId) await this._db.appData.clear(existing.storageId);
-
     const appRecord = {
       id:          appId,
       path:        fspath,
@@ -266,6 +264,7 @@ export class Launcher {
       permissions: manifest.permissions,
       requestedPermissions: manifest.permissions,
       storageId:   createStorageId(),
+      permissionDecisionVersion: 1,
       events:      manifest.events,
       entry:       manifest.entry,
       bos:         manifest.bos,
@@ -276,6 +275,10 @@ export class Launcher {
     };
 
     await this._db.apps.put(appRecord);
+    if (existing?.storageId) {
+      try { await this._db.appData.clear(existing.storageId); }
+      catch (error) { console.warn('[launcher] Old app storage cleanup failed:', error); }
+    }
     console.log(`[launcher] Installed: ${manifest.name} (${appId})`);
 
     // Notify shell to refresh app list
@@ -308,8 +311,13 @@ export class Launcher {
   // ─── Internal boot ─────────────────────────────────────────────────────────
 
   async _boot(app, args = {}) {
-    if (!app.storageId) {
-      app.storageId = createStorageId();
+    if (app.permissionDecisionVersion !== 1 || !app.storageId) {
+      // Older installs never received a consent prompt for app.storage. Strip
+      // that newly introduced capability until the user reinstalls and approves it.
+      app.permissions = (app.permissions || []).filter(permission => permission !== 'app.storage');
+      app.requestedPermissions ||= app.permissions;
+      app.storageId ||= createStorageId();
+      app.permissionDecisionVersion = 1;
       await this._db.apps.put(app);
     }
     let zipArrayBuffer;
@@ -443,6 +451,7 @@ export class Launcher {
           permissions: manifest.permissions,
           requestedPermissions: manifest.permissions,
           storageId:   createStorageId(),
+          permissionDecisionVersion: 1,
           events:      manifest.events,
           entry:       manifest.entry,
           bos:         manifest.bos,
