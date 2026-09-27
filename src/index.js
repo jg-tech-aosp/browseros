@@ -93,7 +93,7 @@ async function boot() {
     kernel._launcher = launcher;
 
     // Register native system apps
-    registerSettingsApp({ wm, settings, kernel, db });
+    registerSettingsApp({ wm, settings, kernel, db, fs });
     registerFileManager({ wm, fs, db, launcher, kernel, settings });
     registerBrowser({ wm, fs, db });
     registerAppStore({ wm, fs, db, launcher });
