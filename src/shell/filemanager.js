@@ -374,7 +374,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
           }},
         ];
         if (isImage) {
-          items.push({ label: '🎨 Open in Paint', action: () => launcher.launchById('paint') });
+          items.push({ label: '🎨 Open in Paint', action: () => wm.openSystemApp('paint', { file: fullPath(item.name) }) });
         }
         items.push('sep');
         items.push(
