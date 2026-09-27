@@ -197,4 +197,9 @@ export function registerImageViewer({ wm, fs }) {
       };
     },
   });
+
+  document.addEventListener('bos:openFile', event => {
+    const path = event.detail?.path;
+    if (path && isImageFile(path)) wm.openSystemApp('imageviewer', { file: path });
+  });
 }
