@@ -569,6 +569,9 @@ export class WindowManager {
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const overWindow = el?.closest('.wm-window');
       const overFileManager = el?.closest('.bos-fm-dropzone');
+      const targetInstanceId = overFileManager
+        ? overFileManager.closest('.wm-window')?.id.replace(/^wm-win-/, '')
+        : null;
       const desktop = document.getElementById('wm-desktop');
       if (desktop) desktop.style.outline = overWindow ? '' : '2px dashed var(--wm-accent)';
       if (this._dragState) {
@@ -576,6 +579,7 @@ export class WindowManager {
         this._dragState.lastY = e.clientY;
         this._dragState.overDesktop = !overWindow;
         this._dragState.overFileManager = !!overFileManager;
+        this._dragState.targetInstanceId = targetInstanceId;
       }
     };
 
@@ -590,7 +594,13 @@ export class WindowManager {
       if (desktop) desktop.style.outline = '';
       if (this._dragState?.overFileManager) {
         document.dispatchEvent(new CustomEvent('bos:dropOnFM', {
-          detail: { path: this._dragState.path, name: this._dragState.name, x: e.clientX, y: e.clientY }
+          detail: {
+            path: this._dragState.path,
+            name: this._dragState.name,
+            x: e.clientX,
+            y: e.clientY,
+            targetInstanceId: this._dragState.targetInstanceId,
+          }
         }));
       } else if (this._dragState?.overDesktop) {
         document.dispatchEvent(new CustomEvent('bos:dropOnDesktop', {
