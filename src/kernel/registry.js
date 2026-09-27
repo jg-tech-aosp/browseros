@@ -28,17 +28,19 @@ export class Registry {
    * @param {string}   opts.name        - Display name
    * @param {string}   opts.version     - App version
    * @param {string}   opts.path        - Filesystem path of the .beep file
-   * @param {string[]} opts.permissions - Declared permissions
+   * @param {string}   opts.storageId  - OS-generated private storage namespace
+   * @param {string[]} opts.permissions - Granted permissions
    * @param {string[]} opts.events      - Declared events
    * @param {Window}   opts.contentWindow - The iframe's contentWindow
    */
-  register({ instanceId, appId, name, version, path, permissions, events, contentWindow }) {
+  register({ instanceId, appId, name, version, path, storageId, permissions, events, contentWindow }) {
     this._instances.set(instanceId, {
       instanceId,
       appId,
       name,
       version,
       path,
+      storageId,
       permissions: permissions || [],
       events:      events      || [],
       contentWindow,
