@@ -297,7 +297,7 @@ export class Taskbar {
     panel.id = 'bos-qs-panel';
     panel.style.cssText = `
       position:fixed;bottom:calc(var(--wm-taskbar-h) + 8px);right:8px;
-      width:300px;background:var(--wm-panel-bg);backdrop-filter:blur(20px);
+      width:300px;background:var(--wm-panel-bg);backdrop-filter:var(--wm-backdrop-filter,blur(20px));
       border:1px solid var(--wm-panel-border);border-radius:12px;
       box-shadow:0 8px 32px rgba(0,0,0,0.5);z-index:9100;padding:16px;
     `;
@@ -376,7 +376,7 @@ export class Taskbar {
     menu.style.cssText = `
       position:fixed;left:${Math.min(x, window.innerWidth - 200)}px;
       top:${Math.min(y, window.innerHeight - items.length * 36 - 60)}px;
-      background:var(--wm-panel-bg);backdrop-filter:blur(20px);
+      background:var(--wm-panel-bg);backdrop-filter:var(--wm-backdrop-filter,blur(20px));
       border:1px solid var(--wm-panel-border);border-radius:8px;
       padding:4px;z-index:99999;min-width:200px;
       box-shadow:0 8px 32px rgba(0,0,0,0.5);
