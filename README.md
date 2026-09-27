@@ -1,4 +1,4 @@
-# BrowserOS 2.1.0
+# BrowserOS 2.1.1
 
 **Your desktop, in a browser tab.** BrowserOS is a playful, browser-based desktop environment with windows, apps, a taskbar, a Start menu, and a virtual filesystem of its own.
 
