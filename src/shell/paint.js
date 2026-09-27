@@ -157,8 +157,9 @@ export function registerPaint({ wm, fs }) {
       saveBtn.onclick = async () => {
         const name = prompt('Save as (in /Pictures/):', 'drawing.png');
         if (!name) return;
-        await fs.write('/Pictures/' + name, canvas.toDataURL('image/png'));
-        wm.notify('Saved to /Pictures/' + name);
+        const result = await fs.writeUnique('/Pictures/' + name, canvas.toDataURL('image/png'));
+        if (!result.ok) { wm.notify('Save failed: ' + result.error); return; }
+        wm.notify('Saved to ' + result.path);
       };
 
       // ── Fill ──────────────────────────────────────────────────────────────────
