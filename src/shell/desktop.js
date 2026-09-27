@@ -328,6 +328,7 @@ export class Desktop {
               path: ic.fspath,
               name: filename,
               targetPath: fmDropTarget.dataset.path || null,
+              targetInstanceId: fmDropTarget.closest('.wm-window')?.id.replace(/^wm-win-/, '') || null,
               onMoved: async () => {
                 this._freeCell(ic.gridX, ic.gridY);
                 ic.el.remove();
