@@ -267,7 +267,14 @@ export class Desktop {
       return;
     }
     const ext = name.split('.').pop().toLowerCase();
-    if (['txt','md','js','json','html','css'].includes(ext)) {
+    if (ext === 'writer') {
+      if (!await this._db.apps.get('writer')) {
+        this._wm.notify('Install Writer from the App Store to open this document');
+        return;
+      }
+      try { await this._launcher.launchById('writer', { file: path }); }
+      catch (error) { this._wm.notify('Could not open Writer: ' + error.message); }
+    } else if (['txt','md','js','json','html','css'].includes(ext)) {
       this._wm.openSystemApp('texteditor', { file: path });
     } else if (['mp3','wav','ogg'].includes(ext)) {
       this._wm.openSystemApp('musicplayer', { file: path });
