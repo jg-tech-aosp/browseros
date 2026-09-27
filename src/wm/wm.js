@@ -592,7 +592,7 @@ export class WindowManager {
       });
       const desktop = document.getElementById('wm-desktop');
       if (desktop) desktop.style.outline = '';
-      if (this._dragState?.overFileManager) {
+      if (this._dragState?.overFileManager && this._dragState.targetInstanceId) {
         document.dispatchEvent(new CustomEvent('bos:dropOnFM', {
           detail: {
             path: this._dragState.path,
