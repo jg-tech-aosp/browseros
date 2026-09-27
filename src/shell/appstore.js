@@ -9,6 +9,25 @@ import { createStorageId, confirmPermissionGrant } from '../apps/launcher.js';
 
 const STORE_URL = 'https://raw.githubusercontent.com/jg-tech-aosp/BrowserOS-Store/main/index.json';
 
+function compareVersions(a, b) {
+  const parse = value => {
+    const match = String(value ?? '').trim().replace(/^v/i, '').match(/^(\\d+(?:\\.\\d+)*)(?:-([0-9A-Za-z.-]+))?(?:\\+[0-9A-Za-z.-]+)?$/);
+    return match ? { numbers: match[1].split('.').map(Number), prerelease: match[2] || '' } : null;
+  };
+  const left = parse(a);
+  const right = parse(b);
+  if (!left || !right) return String(a ?? '').localeCompare(String(b ?? ''), undefined, { numeric: true, sensitivity: 'base' });
+
+  const length = Math.max(left.numbers.length, right.numbers.length);
+  for (let i = 0; i < length; i++) {
+    const difference = (left.numbers[i] || 0) - (right.numbers[i] || 0);
+    if (difference) return Math.sign(difference);
+  }
+  if (!left.prerelease && right.prerelease) return 1;
+  if (left.prerelease && !right.prerelease) return -1;
+  return left.prerelease.localeCompare(right.prerelease, undefined, { numeric: true, sensitivity: 'base' });
+}
+
 export function registerAppStore({ wm, fs, db, launcher }) {
 
   wm.registerSystemApp('appstore', {
@@ -19,6 +38,7 @@ export function registerAppStore({ wm, fs, db, launcher }) {
     mount(container, instanceId) {
       let apps = [];
       const installing = {};
+      const installedApps = {};
 
       container.style.cssText = 'display:flex;flex-direction:column;height:100%;overflow:hidden;background:var(--wm-bg);color:var(--wm-text)';
 
@@ -87,15 +107,20 @@ export function registerAppStore({ wm, fs, db, launcher }) {
 
           const isInstalled = installing[app.id] === 'done';
           const isLoading   = installing[app.id] === 'loading';
+          const installedApp = installedApps[app.id];
+          const updateAvailable = isInstalled && installedApp
+            && compareVersions(app.version, installedApp.version) > 0;
 
           const installBtn = document.createElement('button');
-          installBtn.textContent = isInstalled ? '✓ Installed' : isLoading ? 'Installing...' : 'Install';
-          installBtn.style.cssText = `background:${isInstalled ? 'rgba(16,124,16,0.3)' : 'var(--wm-accent)'};border:none;color:#fff;border-radius:6px;padding:7px;font-size:13px;cursor:${isLoading ? 'default' : 'pointer'};transition:filter 0.15s`;
+          installBtn.textContent = isInstalled
+            ? (updateAvailable ? 'Update to v' + app.version : '✓ Installed')
+            : isLoading ? 'Installing...' : 'Install';
+          installBtn.style.cssText = `background:${updateAvailable ? '#0b72c9' : isInstalled ? 'rgba(16,124,16,0.3)' : 'var(--wm-accent)'};border:none;color:#fff;border-radius:6px;padding:7px;font-size:13px;cursor:${isLoading ? 'default' : 'pointer'};transition:filter 0.15s`;
 
-          if (!isLoading) {
+          if (!isLoading && (!isInstalled || updateAvailable)) {
             installBtn.onmouseenter = () => installBtn.style.filter = 'brightness(1.15)';
             installBtn.onmouseleave = () => installBtn.style.filter = '';
-            installBtn.onclick = () => installApp(app, installBtn);
+            installBtn.onclick = () => installApp(app, installBtn, updateAvailable);
           }
 
           // Reinstall button for already-installed apps
@@ -106,7 +131,7 @@ export function registerAppStore({ wm, fs, db, launcher }) {
             reinstallBtn.onmouseenter = () => reinstallBtn.style.background = 'rgba(255,255,255,0.15)';
             reinstallBtn.onmouseleave = () => reinstallBtn.style.background = 'rgba(255,255,255,0.07)';
             reinstallBtn.onclick = async () => {
-              await installApp(app, installBtn);
+              await installApp(app, installBtn, false);
             };
             card.appendChild(topRow);
             card.appendChild(desc);
@@ -128,7 +153,7 @@ export function registerAppStore({ wm, fs, db, launcher }) {
       }
 
       // ── Install ───────────────────────────────────────────────────────────────
-      async function installApp(app, btn) {
+      async function installApp(app, btn, preserveAppData = false) {
         const wasInstalled = installing[app.id] === 'done';
         installing[app.id] = 'loading';
         btn.textContent = 'Downloading...';
@@ -137,7 +162,7 @@ export function registerAppStore({ wm, fs, db, launcher }) {
 
         try {
           // Fetch binary directly — we're native, no sandbox
-          const res = await fetch(app.url);
+          const res = await fetch(app.url, { cache: 'no-store' });
           if (!res.ok) throw new Error('Download failed: HTTP ' + res.status);
 
           const arrayBuffer = await res.arrayBuffer();
@@ -155,6 +180,9 @@ export function registerAppStore({ wm, fs, db, launcher }) {
 
           // Store directly in apps DB (same as seedInboxApps)
           const manifest = JSON.parse(await manifestFile.async('string'));
+          if (app.version && String(manifest.version) !== String(app.version)) {
+            throw new Error('Store lists v' + app.version + ', but the package manifest says v' + manifest.version);
+          }
           const requestedPermissions = Array.isArray(manifest.permissions) ? manifest.permissions : [];
           if (!confirmPermissionGrant(manifest.name || app.name, requestedPermissions)) {
             if (wasInstalled) installing[app.id] = 'done';
@@ -166,6 +194,10 @@ export function registerAppStore({ wm, fs, db, launcher }) {
           }
 
           const previous = await db.apps.get(app.id);
+          const keepAppData = preserveAppData
+            && previous?.storageId
+            && previous.permissions?.includes('app.storage')
+            && requestedPermissions.includes('app.storage');
           const appRecord = {
             id:          app.id,
             path:        '/Apps/' + app.id + '.beep',
@@ -175,7 +207,7 @@ export function registerAppStore({ wm, fs, db, launcher }) {
             emoji:       manifest.emoji || app.emoji || '⚡',
             permissions: requestedPermissions,
             requestedPermissions,
-            storageId:   createStorageId(),
+            storageId:   keepAppData ? previous.storageId : createStorageId(),
             permissionDecisionVersion: 1,
             events:      manifest.events      || [],
             entry:       manifest.entry,
@@ -188,12 +220,13 @@ export function registerAppStore({ wm, fs, db, launcher }) {
           };
 
           await db.apps.put(appRecord);
-          if (previous?.storageId) {
+          if (previous?.storageId && previous.storageId !== appRecord.storageId) {
             try { await db.appData.clear(previous.storageId); }
             catch (error) { console.warn('[appstore] Old app storage cleanup failed:', error); }
           }
 
           installing[app.id] = 'done';
+          installedApps[app.id] = appRecord;
           btn.textContent = '✓ Installed';
           btn.style.background = 'rgba(16,124,16,0.3)';
           btn.disabled = false;
@@ -225,14 +258,17 @@ export function registerAppStore({ wm, fs, db, launcher }) {
         main.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--wm-text-dim);padding:40px;font-size:14px">🔄 Loading store...</div>`;
         statusEl.textContent = 'Fetching app list...';
         try {
-          const res = await fetch(STORE_URL);
+          const res = await fetch(STORE_URL, { cache: 'no-store' });
           if (!res.ok) throw new Error('HTTP ' + res.status);
           apps = await res.json();
 
-          // Mark already installed apps
+          // Compare catalog versions with the installed package manifest versions.
           for (const app of apps) {
             const existing = await db.apps.get(app.id);
-            if (existing) installing[app.id] = 'done';
+            if (existing) {
+              installing[app.id] = 'done';
+              installedApps[app.id] = existing;
+            }
           }
 
           statusEl.textContent = apps.length + ' app' + (apps.length !== 1 ? 's' : '') + ' available';
