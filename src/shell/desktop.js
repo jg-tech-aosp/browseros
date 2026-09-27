@@ -459,7 +459,11 @@ export class Desktop {
       { label: '📄 New Text File', action: async () => {
         const name = prompt('File name:', 'untitled.txt');
         if (!name) return;
-        await this._fs.write('/Desktop/' + name, '');
+        const result = await this._fs.writeUnique('/Desktop/' + name, '');
+        if (!result.ok) { this._wm.notify('Create failed: ' + result.error); return; }
+        if (result.path !== '/Desktop/' + name) {
+          this._wm.notify('Name already exists; created "' + result.path.split('/').pop() + '" instead');
+        }
         await this._restoreDesktopFiles();
       }},
       'sep',
