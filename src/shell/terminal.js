@@ -181,11 +181,11 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
         whoami() { print('root'); },
 
         uname(args) {
-          print(args[0] === '-a' ? 'BrowserOS 2.1.0 (HTML5/IndexedDB) x86_64' : 'BrowserOS');
+          print(args[0] === '-a' ? 'BrowserOS 2.1.1 (HTML5/IndexedDB) x86_64' : 'BrowserOS');
         },
 
         version() {
-          print('BrowserOS v2.1.0');
+          print('BrowserOS v2.1.1');
           print('BOS API: 2.0');
           print('Engine: HTML5 / ES Modules / IndexedDB');
         },
