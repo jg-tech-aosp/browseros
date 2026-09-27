@@ -621,6 +621,7 @@ The major object stores are:
 - `fs`
 - `apps`
 - `settings`
+- `appData` (private persistent storage for installed .beep apps)
 
 ## fs store
 
@@ -664,6 +665,9 @@ Typical fields include:
   icon,
   emoji,
   permissions,
+  requestedPermissions,
+  storageId,
+  permissionDecisionVersion,
   events,
   entry,
   bos,
@@ -677,6 +681,10 @@ Typical fields include:
 Inbox applications may additionally store their raw ZIP data for later launching.
 
 The app record also stores the granted permissions and an OS-generated `storageId`. Storage records are keyed by that private ID and app key; app code never supplies the ID.
+
+## appData store
+
+Private key/value records use the compound key `[storageId, key]`. Each app installation has a separate OS-generated `storageId`; values are JSON-serialized, limited to 64 KiB each and 256 KiB total per installation.
 
 ## settings store
 
