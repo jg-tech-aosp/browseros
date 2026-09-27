@@ -112,6 +112,18 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
 
       function fullPath(name) { return (cwd === '/' ? '' : cwd) + '/' + name; }
 
+      async function createFile(path, content) {
+        const result = await fs.writeUnique(path, content);
+        if (!result.ok) {
+          wm.notify('Create failed: ' + result.error);
+          return result;
+        }
+        if (result.path !== path) {
+          wm.notify('Name already exists; created "' + result.path.split('/').pop() + '" instead');
+        }
+        return result;
+      }
+
       function navigate(path) {
         cwd = path;
         histIdx = history.length;
@@ -261,7 +273,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
             const reader = new FileReader();
             const isText = file.type.startsWith('text/') || /\.(txt|md|js|json|html|css|csv|xml|svg|beep)$/i.test(file.name);
             reader.onload = async e2 => {
-              await fs.write(fullPath(file.name), e2.target.result);
+              await createFile(fullPath(file.name), e2.target.result);
               done++;
               if (done === files.length) { render(); statusBar.textContent = 'Imported ' + done + ' file(s)'; }
             };
@@ -398,16 +410,22 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
           }},
           { label: '📄 New File', action: async () => {
             const name = prompt('File name:', 'untitled.txt');
-            if (name) { await fs.write(fullPath(name), ''); render(); }
+            if (name) { await createFile(fullPath(name), ''); render(); }
           }},
           'sep',
         ];
         if (clipboard) {
           items.push({ label: '📋 Paste "' + clipboard.name + '"', action: async () => {
             const destPath = fullPath(clipboard.name);
-            const content = await fs.read(clipboard.path);
-            if (content !== null) await fs.write(destPath, content);
-            if (clipboard.op === 'cut') await fs.rm(clipboard.path);
+            if (clipboard.op === 'cut') {
+              const result = await fs.move(clipboard.path, destPath);
+              if (!result.ok) { wm.notify('Move failed: ' + result.error); return; }
+            } else {
+              const content = await fs.read(clipboard.path);
+              if (content === null) { wm.notify('Could not copy: ' + clipboard.name); return; }
+              const result = await createFile(destPath, content);
+              if (!result.ok) return;
+            }
             clipboard = null; render();
           }});
           items.push('sep');
@@ -453,7 +471,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
         navigate('/' + parts.join('/') || '/');
       };
       newFolderBtn.onclick = async () => { const n = prompt('Folder name:'); if (n) { await fs.mkdir(fullPath(n)); render(); }};
-      newFileBtn.onclick   = async () => { const n = prompt('File name:', 'untitled.txt'); if (n) { await fs.write(fullPath(n), ''); render(); }};
+      newFileBtn.onclick   = async () => { const n = prompt('File name:', 'untitled.txt'); if (n) { await createFile(fullPath(n), ''); render(); }};
       refreshBtn.onclick   = render;
       importBtn.onclick    = () => fileInput.click();
 
@@ -466,7 +484,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
           const reader = new FileReader();
           const isText = file.type.startsWith('text/') || /\.(txt|md|js|json|html|css|csv|xml|svg|beep)$/i.test(file.name);
           reader.onload = async e => {
-            await fs.write(fullPath(file.name), e.target.result);
+            await createFile(fullPath(file.name), e.target.result);
             done++;
             if (done === files.length) { render(); statusBar.textContent = 'Imported ' + done + ' file(s)'; }
           };
