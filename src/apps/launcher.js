@@ -386,7 +386,7 @@ export class Launcher {
     // Build and send boot payload
     const theme = await this._settings.getTheme();
     await this._kernel.sendBootPayload(instanceId, {
-      version: '2.1.0',
+      version: '2.1.1',
       theme,
       args,
       env: {
