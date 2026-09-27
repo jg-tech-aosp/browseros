@@ -186,7 +186,6 @@ export function registerSettingsApp({ wm, settings, kernel, db }) {
     main.appendChild(row('Transparency', 'Frosted glass effect on taskbar and menus',
       toggle(settings.get('transparency') !== false, async function(val) {
         await settings.set('transparency', val);
-        document.getElementById('wm-taskbar').style.backdropFilter = val ? 'blur(20px)' : 'none';
       })
     ));
   }
