@@ -176,6 +176,7 @@ export function registerAppStore({ wm, fs, db, launcher }) {
             permissions: requestedPermissions,
             requestedPermissions,
             storageId:   createStorageId(),
+            permissionDecisionVersion: 1,
             events:      manifest.events      || [],
             entry:       manifest.entry,
             bos:         manifest.bos,
@@ -187,7 +188,10 @@ export function registerAppStore({ wm, fs, db, launcher }) {
           };
 
           await db.apps.put(appRecord);
-          if (previous?.storageId) await db.appData.clear(previous.storageId);
+          if (previous?.storageId) {
+            try { await db.appData.clear(previous.storageId); }
+            catch (error) { console.warn('[appstore] Old app storage cleanup failed:', error); }
+          }
 
           installing[app.id] = 'done';
           btn.textContent = '✓ Installed';
