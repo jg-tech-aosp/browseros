@@ -151,7 +151,11 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
 
         async touch(args) {
           if (!args[0]) { print('touch: missing operand', '#ff8888'); return; }
-          await fs.write(resolvePath(args[0]), '');
+          const path = resolvePath(args[0]);
+          if (await fs.stat(path)) return;
+          const result = await fs.writeUnique(path, '');
+          if (!result.ok) print('touch: ' + result.error, '#ff8888');
+          else print('Created ' + result.path);
         },
 
         async rm(args) {
@@ -190,8 +194,9 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
           if (args.length < 2) { print('cp: missing operand', '#ff8888'); return; }
           const content = await fs.read(resolvePath(args[0]));
           if (content === null) { print('cp: source not found', '#ff8888'); return; }
-          await fs.write(resolvePath(args[1]), content);
-          print('Copied ' + args[0] + ' → ' + args[1]);
+          const result = await fs.writeUnique(resolvePath(args[1]), content);
+          if (!result.ok) { print('cp: ' + result.error, '#ff8888'); return; }
+          print('Copied ' + args[0] + ' → ' + result.path);
         },
 
         async mv(args) {
