@@ -165,8 +165,8 @@ const WM_STYLES = `
 
   #wm-start-btn {
     width: 38px; height: 38px;
-    background: var(--wm-accent);
-    border: none; border-radius: 8px;
+    background: #000;
+    border: 1px solid rgba(255,255,255,0.24); border-radius: 8px; padding: 4px;
     cursor: pointer; font-size: 20px;
     color: #fff;
     display: flex; align-items: center; justify-content: center;
@@ -174,6 +174,7 @@ const WM_STYLES = `
     transition: background 0.15s;
   }
   #wm-start-btn:hover { filter: brightness(1.15); }
+  .wm-start-logo { width: 28px; height: 28px; object-fit: contain; border-radius: 3px; display: block; }
 
   #wm-taskbar-apps { display: flex; gap: 4px; flex: 1; overflow: hidden; }
 
@@ -303,7 +304,7 @@ export class WindowManager {
       <div id="wm-desktop"></div>
       <div id="wm-toasts"></div>
       <div id="wm-taskbar">
-        <button id="wm-start-btn" title="Start">⊞</button>
+        <button id="wm-start-btn" title="Start" aria-label="Open Start menu"><img class="wm-start-logo" src="${new URL('../../assets/browseros-logo-white-black.png', import.meta.url).href}" alt=""></button>
         <div id="wm-taskbar-apps"></div>
         <div id="wm-clock"></div>
       </div>
