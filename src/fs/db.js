@@ -7,7 +7,7 @@
  */
 
 const DB_NAME    = 'BrowserOS';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
@@ -44,6 +44,12 @@ function onUpgrade(db) {
   // settings store — key/value OS settings
   if (!db.objectStoreNames.contains('settings')) {
     db.createObjectStore('settings', { keyPath: 'key' });
+  }
+
+  // appData store — private, quota-limited values for each installed app
+  if (!db.objectStoreNames.contains('appData')) {
+    const appData = db.createObjectStore('appData', { keyPath: ['storageId', 'key'] });
+    appData.createIndex('storageId', 'storageId', { unique: false });
   }
 }
 
@@ -193,6 +199,86 @@ function makeAppsStore(db) {
   };
 }
 
+
+function makeAppDataStore(db) {
+  const MAX_VALUE_BYTES = 64 * 1024;
+  const MAX_APP_BYTES = 256 * 1024;
+
+  return {
+    async get(storageId, key) {
+      const record = await tx(db, ['appData'], 'readonly', t =>
+        request(t.objectStore('appData').get([storageId, key]))
+      );
+      return record ? JSON.parse(record.value) : undefined;
+    },
+
+    async set(storageId, key, value) {
+      let serialized;
+      try {
+        serialized = JSON.stringify(value);
+      } catch {
+        throw new Error('Storage value must be JSON-serializable');
+      }
+      if (serialized === undefined) throw new Error('Storage value must be JSON-serializable');
+      const size = new Blob([serialized]).size;
+      if (size > MAX_VALUE_BYTES) throw new Error('Storage value exceeds the 64 KB per-value limit');
+
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(['appData'], 'readwrite');
+        const store = transaction.objectStore('appData');
+        let failure = null;
+
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(failure || transaction.error);
+        transaction.onabort = () => reject(failure || transaction.error || new Error('Storage write aborted'));
+
+        const allRequest = store.index('storageId').getAll(storageId);
+        allRequest.onsuccess = () => {
+          const records = allRequest.result;
+          const existing = records.find(record => record.key === key);
+          const used = records.reduce((total, record) => total + record.size, 0);
+          if (used - (existing?.size || 0) + size > MAX_APP_BYTES) {
+            failure = new Error('App storage quota exceeded (256 KB per app)');
+            transaction.abort();
+            return;
+          }
+          store.put({ storageId, key, value: serialized, size, modified: Date.now() });
+        };
+      });
+    },
+
+    async remove(storageId, key) {
+      return tx(db, ['appData'], 'readwrite', t =>
+        request(t.objectStore('appData').delete([storageId, key]))
+      );
+    },
+
+    async keys(storageId) {
+      const primaryKeys = await tx(db, ['appData'], 'readonly', t =>
+        request(t.objectStore('appData').index('storageId').getAllKeys(storageId))
+      );
+      return primaryKeys.map(primaryKey => primaryKey[1]);
+    },
+
+    async clear(storageId) {
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(['appData'], 'readwrite');
+        const store = transaction.objectStore('appData');
+        const cursorRequest = store.index('storageId').openCursor(storageId);
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error || new Error('Storage cleanup aborted'));
+        cursorRequest.onsuccess = event => {
+          const cursor = event.target.result;
+          if (!cursor) return;
+          cursor.delete();
+          cursor.continue();
+        };
+      });
+    },
+  };
+}
+
 function makeSettingsStore(db) {
   return {
     async get(key) {
@@ -230,6 +316,7 @@ export class DB {
   constructor(idb) {
     this.fs       = makeFsStore(idb);
     this.apps     = makeAppsStore(idb);
+    this.appData  = makeAppDataStore(idb);
     this.settings = makeSettingsStore(idb);
   }
 
