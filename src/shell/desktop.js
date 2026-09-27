@@ -291,10 +291,11 @@ export class Desktop {
         const dx = e2.clientX - sx, dy = e2.clientY - sy;
         if (!didDrag && Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
         didDrag = true;
-        el.style.left    = Math.max(0, sl + dx) + 'px';
-        el.style.top     = Math.max(0, st + dy) + 'px';
-        el.style.opacity = '0.7';
-        el.style.zIndex  = '999';
+        el.style.left        = Math.max(0, sl + dx) + 'px';
+        el.style.top         = Math.max(0, st + dy) + 'px';
+        el.style.opacity     = '0.7';
+        el.style.zIndex      = '999';
+        el.style.pointerEvents = 'none';
 
         // Highlight folder icons under cursor
         this._icons.forEach(other => {
@@ -310,10 +311,33 @@ export class Desktop {
       const onUp = async e2 => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup',   onUp);
+        const fmDropTarget = didDrag
+          ? document.elementFromPoint(e2.clientX, e2.clientY)?.closest('.bos-fm-dropzone, .bos-fm-sidebar-item')
+          : null;
         el.style.opacity = '';
         el.style.zIndex  = '';
+        el.style.pointerEvents = '';
 
         if (!didDrag) return;
+
+        // Move a desktop file into File Manager's current folder or a sidebar folder.
+        if (fmDropTarget && ic.fspath) {
+          const filename = ic.fspath.split('/').pop();
+          document.dispatchEvent(new CustomEvent('bos:dropOnFM', {
+            detail: {
+              path: ic.fspath,
+              name: filename,
+              targetPath: fmDropTarget.dataset.path || null,
+              onMoved: async () => {
+                this._freeCell(ic.gridX, ic.gridY);
+                ic.el.remove();
+                this._icons.delete(key);
+                await this._savePositions();
+              },
+            },
+          }));
+          return;
+        }
 
         // Check if dropped onto a folder icon
         for (const [otherKey, other] of this._icons) {
