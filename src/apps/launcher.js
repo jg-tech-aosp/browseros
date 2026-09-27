@@ -16,7 +16,7 @@ const BASE_URL = (() => {
   // Derive from current page location — works for any repo name
   const loc = window.location.href;
   const idx = loc.indexOf('/browseros2/');
-  if (idx !== -1) return loc.substring(0, idx) + '/browseros2/';
+  if (idx !== -1) return loc.substring(0, idx) + '/browseros/';
   // Fallback: use origin (works for localhost)
   return window.location.origin + '/';
 })();
