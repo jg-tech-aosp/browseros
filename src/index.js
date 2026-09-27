@@ -71,6 +71,7 @@ async function boot() {
     console.log('[bos] Booting window manager...');
     const wm = new WindowManager({
       settings,
+      fs,
       onStart: () => search.toggle(),
     });
     wm.boot();
