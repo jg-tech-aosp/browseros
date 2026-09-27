@@ -4,7 +4,7 @@
 
 [Open BrowserOS](https://jg-tech-aosp.github.io/browseros2/) · [Technical specification](SPEC.md)
 
-![BrowserOS logo](assets/browseros-logo-black-transparent.png)
+![BrowserOS logo](assets/browseros-logo-white-black.png)
 
 ## What you can do
 
