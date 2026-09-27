@@ -87,6 +87,27 @@ function validateManifest(manifest, path) {
   }
 }
 
+export function createStorageId() {
+  return globalThis.crypto?.randomUUID
+    ? globalThis.crypto.randomUUID()
+    : 'app-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+}
+
+export function confirmPermissionGrant(appName, permissions) {
+  const requested = Array.isArray(permissions) ? permissions : [];
+  if (!requested.length) return true;
+  const describe = permission => {
+    if (permission === 'app.storage') return 'Private persistent storage for this app';
+    if (permission === 'ui.passive') return 'Notifications and window controls';
+    if (permission === 'ui.interactive') return 'Alerts, confirmations and prompts';
+    if (permission === 'network') return 'Network requests';
+    if (permission.startsWith('fs:')) return 'Virtual filesystem access: ' + permission;
+    return 'Permission: ' + permission;
+  };
+  const details = requested.map(permission => '• ' + describe(String(permission))).join('\n');
+  return window.confirm(appName + ' requests these permissions:\n\n' + details + '\n\nGrant them and install this app?');
+}
+
 /** Build the srcdoc HTML injected into the sandboxed iframe */
 function buildSrcdoc(bosClientSrc, appMainSrc, manifest) {
   return `<!DOCTYPE html>
@@ -225,6 +246,15 @@ export class Launcher {
     const iconEmoji = manifest.emoji || '⚡';
 
     const appId = deriveAppId(fspath);
+    const existing = await this._db.apps.get(appId);
+    if (existing?.protected && !isProtected) throw new Error('Cannot replace a protected app');
+    if (existing && !isProtected && !window.confirm('Replace ' + existing.name + '? Its private saved data will be erased.')) {
+      throw new Error('Installation cancelled');
+    }
+    if (!isProtected && !confirmPermissionGrant(manifest.name, manifest.permissions)) {
+      throw new Error('Permission request declined');
+    }
+    if (existing?.storageId) await this._db.appData.clear(existing.storageId);
 
     const appRecord = {
       id:          appId,
@@ -234,6 +264,8 @@ export class Launcher {
       icon:        iconDataUrl,   // null if no image — use emoji instead
       emoji:       iconEmoji,     // always set, used as text fallback
       permissions: manifest.permissions,
+      requestedPermissions: manifest.permissions,
+      storageId:   createStorageId(),
       events:      manifest.events,
       entry:       manifest.entry,
       bos:         manifest.bos,
@@ -276,6 +308,10 @@ export class Launcher {
   // ─── Internal boot ─────────────────────────────────────────────────────────
 
   async _boot(app, args = {}) {
+    if (!app.storageId) {
+      app.storageId = createStorageId();
+      await this._db.apps.put(app);
+    }
     let zipArrayBuffer;
 
     // Use stored zipData if available (inbox apps seeded without writing to FS)
@@ -326,6 +362,7 @@ export class Launcher {
       version:       app.version,
       path:          app.path,
       permissions:   app.permissions,
+      storageId:     app.storageId,
       events:        app.events,
       contentWindow: iframe.contentWindow,
     });
@@ -404,6 +441,8 @@ export class Launcher {
           icon:        iconDataUrl,
           emoji:       manifest.emoji || '⚡',
           permissions: manifest.permissions,
+          requestedPermissions: manifest.permissions,
+          storageId:   createStorageId(),
           events:      manifest.events,
           entry:       manifest.entry,
           bos:         manifest.bos,
