@@ -41,6 +41,12 @@ const PERMISSION_MAP = {
   'ui.confirm': { type: 'static', perm: 'ui.interactive' },
   'ui.prompt':  { type: 'static', perm: 'ui.interactive' },
 
+  // App-private persistent storage
+  'storage.get':    { type: 'static', perm: 'app.storage' },
+  'storage.set':    { type: 'static', perm: 'app.storage' },
+  'storage.remove': { type: 'static', perm: 'app.storage' },
+  'storage.keys':   { type: 'static', perm: 'app.storage' },
+
   // Network
   'net.fetch': { type: 'static', perm: 'network' },
 
