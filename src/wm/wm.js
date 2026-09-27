@@ -27,6 +27,7 @@ const WM_STYLES = `
     --wm-control-border: rgba(255,255,255,0.12);
     --wm-control-hover: rgba(255,255,255,0.14);
     --wm-separator:    rgba(255,255,255,0.1);
+    --wm-backdrop-filter: var(--wm-backdrop-filter);
     --wm-shadow:       0 8px 32px rgba(0,0,0,0.5);
     --wm-radius:       8px;
     --wm-taskbar-h:    48px;
@@ -783,7 +784,7 @@ export class WindowManager {
 
   // ─── Theme ─────────────────────────────────────────────────────────────────
 
-  applyTheme({ accent, font, darkMode, wallpaper }) {
+  applyTheme({ accent, font, darkMode, wallpaper, transparency }) {
     const r = document.documentElement;
     if (accent)    r.style.setProperty('--wm-accent', accent);
     if (font)      r.style.setProperty('--wm-font',   font);
@@ -796,13 +797,14 @@ export class WindowManager {
       r.style.setProperty('--wm-text-dim',      darkMode ? '#8888aa' : '#666');
       r.style.setProperty('--wm-border',        darkMode ? '#3a3a5c' : '#ccc');
       r.style.setProperty('--wm-hover',         darkMode ? '#2d2d4e' : '#ddd');
-      r.style.setProperty('--wm-taskbar-bg',   darkMode ? 'rgba(15,12,40,0.92)' : 'rgba(235,235,245,0.96)');
-      r.style.setProperty('--wm-panel-bg',     darkMode ? 'rgba(20,20,40,0.97)' : 'rgba(250,250,255,0.98)');
+      r.style.setProperty('--wm-taskbar-bg',   darkMode ? (transparency === false ? '#0f0c28' : 'rgba(15,12,40,0.72)') : (transparency === false ? '#ebebf5' : 'rgba(235,235,245,0.78)'));
+      r.style.setProperty('--wm-panel-bg',     darkMode ? (transparency === false ? '#141428' : 'rgba(20,20,40,0.78)') : (transparency === false ? '#fafaff' : 'rgba(250,250,255,0.82)'));
       r.style.setProperty('--wm-panel-border', darkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.14)');
       r.style.setProperty('--wm-control-bg',   darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)');
       r.style.setProperty('--wm-control-border', darkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.15)');
       r.style.setProperty('--wm-control-hover', darkMode ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)');
       r.style.setProperty('--wm-separator',    darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)');
+      r.style.setProperty('--wm-backdrop-filter', transparency === false ? 'none' : 'blur(20px)');
     }
   }
 
