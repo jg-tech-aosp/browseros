@@ -720,6 +720,7 @@ Currently registered native system applications/components include:
 - Terminal
 - System Monitor
 - Paint
+- Image Viewer
 
 The core shell also contains:
 
@@ -807,6 +808,8 @@ Desktop
 
 The File Manager also implements folder drop targets for moving BrowserOS files.
 
+Supported image files (`.apng`, `.avif`, `.bmp`, `.gif`, `.ico`, `.jfif`, `.jpeg`, `.jpg`, `.png`, `.svg`, and `.webp`) open in the native Image Viewer by default. File Manager keeps an explicit **Open in Paint** action for editing.
+
 Host operating-system files are handled separately through the browser's normal `File` drag/drop mechanism and can be imported into the virtual filesystem.
 
 Because BrowserOS has both host-file drag/drop and internal virtual-file drag/drop, these two paths are intentionally distinct.
@@ -885,6 +888,7 @@ The implementation has since diverged in several places, particularly:
 - The launcher gained cached ZIP data for seeded apps.
 - The manifest implementation supports an emoji icon fallback.
 - The App Store and other shell components are implemented directly in `src/shell/`.
+- Native Image Viewer opens supported image files by default from File Manager and Desktop.
 - The current boot sequence seeds only the .beep applications that are actually present in the repository's inbox configuration.
 
 This document is intended to describe the current implementation rather than preserve the original planned architecture.
