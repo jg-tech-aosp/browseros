@@ -268,9 +268,11 @@ export class WindowManager {
    * @param {object}   opts.settings - Settings store
    * @param {Function} opts.onStart  - Called when start button is clicked
    */
-  constructor({ kernel, settings, onStart } = {}) {
+  constructor({ kernel, settings, fs, onStart } = {}) {
     this._kernel   = kernel;
     this._settings = settings;
+    this._fs       = fs;
+    this._wallpaperRevision = 0;
     this._onStart  = onStart || (() => {});
     this._windows  = new Map();   // instanceId → { el, iframe, opts, state }
     this._zIndex   = 100;
@@ -792,7 +794,29 @@ export class WindowManager {
     const r = document.documentElement;
     if (accent)    r.style.setProperty('--wm-accent', accent);
     if (font)      r.style.setProperty('--wm-font',   font);
-    if (wallpaper) r.style.setProperty('--wm-wallpaper', wallpaper);
+    if (wallpaper) {
+      const revision = ++this._wallpaperRevision;
+      if (wallpaper.startsWith('fs:') && this._fs) {
+        const path = wallpaper.slice(3);
+        (async () => {
+          const [content, stat] = await Promise.all([this._fs.read(path), this._fs.stat(path)]);
+          if (content == null || !stat || !stat.mime?.startsWith('image/')) return null;
+          if (content.toLowerCase().startsWith('data:image/')) return content;
+          if (stat.mime === 'image/svg+xml' && stat.encoding !== 'base64') {
+            return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(content);
+          }
+          return 'data:' + stat.mime + ';base64,' + content.replaceAll(' ', '').replaceAll('\n', '').replaceAll('\r', '');
+        })().then(dataUrl => {
+          if (revision !== this._wallpaperRevision) return;
+          if (!dataUrl) { r.style.removeProperty('--wm-wallpaper'); return; }
+          r.style.setProperty('--wm-wallpaper', 'url("' + dataUrl + '") center center / cover no-repeat fixed');
+        }).catch(() => {
+          if (revision === this._wallpaperRevision) r.style.removeProperty('--wm-wallpaper');
+        });
+      } else {
+        r.style.setProperty('--wm-wallpaper', wallpaper);
+      }
+    }
     if (darkMode !== undefined) {
       r.style.setProperty('--wm-bg',           darkMode ? '#1e1e2e' : '#f0f0f5');
       r.style.setProperty('--wm-titlebar',      darkMode ? '#2a2a4a' : '#e0e0f0');
