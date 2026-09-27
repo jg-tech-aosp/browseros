@@ -1,176 +1,285 @@
-# BrowserOS v2 — Technical Specification
+# BrowserOS v2
 
-> This document defines the complete architecture, APIs, and design decisions for BrowserOS 2.0.
-> It is the authoritative reference for the v2 build. Nothing gets built that isn't in here.
+> BrowserOS is a browser-based desktop environment with a virtual filesystem, native system components, sandboxed `.beep` applications, persistent settings, and an application installation system.
+
+This document describes the **implemented BrowserOS v2 architecture** as it exists in the repository. It is both a technical reference and a readable overview. Where the original March 2026 design differed from the implementation, this document describes the implementation.
 
 ---
 
 ## Table of Contents
 
-1. [Architecture Overview](#1-architecture-overview)
-2. [postMessage Protocol](#2-postmessage-protocol)
-3. [.beep v2 Format](#3-beep-v2-format)
-4. [Permissions Model](#4-permissions-model)
-5. [BOS v2 API](#5-bos-v2-api)
-6. [IndexedDB Schema](#6-indexeddb-schema)
-7. [Native vs .beep Split](#7-native-vs-beep-split)
-8. [Build Order](#8-build-order)
+1. [Overview](#1-overview)
+2. [Architecture](#2-architecture)
+3. [Boot Process](#3-boot-process)
+4. [Window Manager and Shell](#4-window-manager-and-shell)
+5. [Virtual Filesystem](#5-virtual-filesystem)
+6. [.beep Applications](#6-beep-applications)
+7. [postMessage IPC](#7-postmessage-ipc)
+8. [Permissions](#8-permissions)
+9. [BOS API](#9-bos-api)
+10. [IndexedDB](#10-indexeddb)
+11. [Native and Sandboxed Components](#11-native-and-sandboxed-components)
+12. [App Store](#12-app-store)
+13. [Drag and Drop](#13-drag-and-drop)
+14. [Current Application Model](#14-current-application-model)
+15. [Design Notes and Limitations](#15-design-notes-and-limitations)
+16. [Project History](#16-project-history)
 
 ---
 
-## 1. Architecture Overview
+# 1. Overview
 
-### The core shift from v1
+## What is BrowserOS?
 
-In v1, `.beep` apps run directly in the same JavaScript scope as the OS. They can access `OS`, `document`, `localStorage` — everything. There is no isolation.
+BrowserOS is an experimental operating-system-like environment implemented entirely with web technologies.
 
-In v2, every `.beep` app runs in its own `<iframe sandbox="allow-scripts">`. This creates a hard security boundary — the app's JS literally cannot reach outside its own scope. The only communication channel is `postMessage`.
+It runs inside a normal web browser but provides many concepts normally associated with a desktop operating system:
 
-```
-┌─────────────────────────────────────┐
-│           BrowserOS v2 Core         │
-│  ┌─────────┐  ┌─────────────────┐   │
-│  │   WM    │  │  postMsg Kernel │   │
-│  └─────────┘  └────────┬────────┘   │
-│  ┌─────────┐           │            │
-│  │   IDB   │           │            │
-│  └─────────┘           │            │
-└──────────────────────── │ ───────────┘
-                          │ postMessage
-        ┌─────────────────┼──────────────┐
-        │                 │              │
-   ┌────┴────┐      ┌─────┴───┐   ┌─────┴───┐
-   │paint.beep│     │calc.beep│   │ fm.beep │
-   │ (iframe) │     │(iframe) │   │(iframe) │
-   └──────────┘     └─────────┘   └─────────┘
-```
+- Desktop and wallpaper
+- Windows
+- Taskbar
+- Start menu
+- Application launcher
+- Search
+- Notifications
+- Virtual filesystem
+- Persistent settings
+- File Manager
+- Terminal
+- Browser
+- Paint
+- Text Editor
+- Music Player
+- System Monitor
+- Calculator
+- Markdown Viewer
+- App Store
+- Sandboxed third-party applications
 
-### Key principles
+The project is a successor to BrowserOS v1.
 
-- **Trust nothing** — every app message is validated and permission-checked before the OS acts on it
-- **Declare everything** — apps declare permissions and events upfront in their manifest
-- **Crash isolation** — a crashed app cannot affect the OS or other apps
-- **Consistent API** — app developers write against `BOS.*`, never raw `postMessage`
+### What changed from v1?
 
-### Technology decisions
+The largest architectural change is application isolation.
 
-- **Zip library** — JSZip for unpacking `.beep` files in memory
-- **Storage** — IndexedDB (replacing localStorage)
-- **App isolation** — `<iframe sandbox="allow-scripts">`
-- **IPC** — `window.postMessage` / `window.addEventListener('message')`
+In v1, applications shared the OS JavaScript environment. A .beep application could access objects such as `OS`, `document`, and `localStorage` directly.
 
----
+BrowserOS v2 instead places .beep applications inside sandboxed iframes. Applications communicate with the operating system through a small asynchronous API called **BOS**, which is implemented on top of `postMessage`.
 
-## 2. postMessage Protocol
+This gives v2 a much clearer separation between the OS and applications.
 
-### Message envelope
+## In simple terms
 
-Every message from an app to the OS follows this format:
+BrowserOS can be thought of as:
 
-```json
-{
-  "reqId": 42,
-  "type": "category.method",
-  "payload": {}
-}
-```
+> **A desktop operating system simulated inside a web page, with its own filesystem and application model.**
 
-Every response from the OS to an app:
-
-```json
-{
-  "reqId": 42,
-  "ok": true,
-  "result": {}
-}
-```
-
-On error:
-
-```json
-{
-  "reqId": 42,
-  "ok": false,
-  "error": "Permission denied"
-}
-```
-
-### reqId
-
-- Incrementing integer, per app instance
-- Each app keeps its own counter starting at 0
-- OS identifies the sender via `e.source` (the iframe's `contentWindow`)
-- Together `appId + reqId` form a unique key: `"paint:42"`
-- Simple, readable, zero collision risk
-
-```js
-// Inside every app iframe
-let reqId = 0;
-function nextReqId() { return reqId++; }
-```
-
-### Events (OS → App, no reqId)
-
-Events are fire-and-forget from OS to app. No response expected.
-
-```json
-{
-  "type": "event.themeChanged",
-  "payload": { "accent": "#0078d4", "font": "...", "darkMode": true }
-}
-```
-
-The OS only sends events to apps that declared them in their manifest. No runtime subscribe/unsubscribe.
-
-### All message types
-
-```
-fs.read          path → { content, encoding }
-fs.stat          path → { type, size, name, created, modified, mime }
-fs.ls            path → [{ type, size, name, created, modified, mime }]
-fs.write         path, content, encoding → ok
-fs.mkdir         path → ok
-fs.rm            path → ok
-fs.rename        path, newName → ok
-fs.move          src, dest → ok
-
-ui.notify        message → ok
-ui.setTitle      title → ok
-ui.setIcon       icon → ok
-ui.setProgress   value → ok
-ui.alert         message → ok
-ui.confirm       message → bool
-ui.prompt        message, default → string | null
-
-app.open         appId → ok
-app.launch       path → ok
-app.install      path → ok
-app.uninstall    id → ok
-app.self         → { name, version, path, permissions, events }
-
-net.fetch        url, options → { ok, status, headers, body }
-
-os.version       → string
-os.theme         → { accent, font, darkMode, wallpaper }
-os.env           → { locale, timezone, screen: { width, height } }
-```
+The browser provides the underlying runtime. BrowserOS provides the desktop environment and virtual operating-system abstractions.
 
 ---
 
-## 3. .beep v2 Format
+# 2. Architecture
 
-A `.beep` file is a standard zip archive with the following structure:
+BrowserOS is divided into several major layers.
 
 ```
-myapp.beep  (zip)
-├── manifest.json    ← required
-├── main.js          ← entry point (or whatever entry specifies)
-├── icon.png         ← app icon, referenced in manifest
-└── assets/          ← optional
-    └── any files
+┌──────────────────────────────────────────┐
+│              Browser / Web                │
+│                                           │
+│  ┌─────────────────────────────────────┐  │
+│  │           BrowserOS Core            │  │
+│  │                                     │  │
+│  │  Window Manager   Shell   Settings  │  │
+│  │  Kernel / IPC     Filesystem         │  │
+│  │  IndexedDB        Launcher           │  │
+│  └──────────────────────┬──────────────┘  │
+│                         │                  │
+│                    postMessage             │
+│                         │                  │
+│       ┌─────────────────┼─────────────┐    │
+│       │                 │             │    │
+│   ┌───▼────┐        ┌───▼────┐    ┌───▼──┐ │
+│   │ Paint  │        │ Calc   │    │ .beep│ │
+│   │ iframe │        │ iframe │    │ apps │ │
+│   └────────┘        └────────┘    └──────┘ │
+└──────────────────────────────────────────┘
 ```
 
-### manifest.json
+### Core components
+
+| Component | Responsibility |
+|---|---|
+| Database layer | IndexedDB access |
+| Filesystem | Virtual files and directories |
+| Kernel | IPC routing, permissions and app registry |
+| Window Manager | Windows, focus, z-order, dragging and resizing |
+| Launcher | Installing and launching .beep applications |
+| Settings | Persistent OS configuration |
+| Desktop | Wallpaper, desktop icons and shell interactions |
+| Taskbar | Running/pinned applications, clock and system UI |
+| Start Menu | Application and system launcher |
+| Search | Keyboard-driven application/file search |
+| Notifications | Notification history and UI |
+
+The implementation is assembled by `src/index.js`, which creates these components and wires their dependencies together during boot.
+
+---
+
+# 3. Boot Process
+
+BrowserOS starts from the minimal root `index.html`.
+
+The page loads:
+
+- JSZip
+- `src/index.js`
+
+The main boot sequence is:
+
+1. Open the BrowserOS IndexedDB database.
+2. Create the virtual filesystem.
+3. Seed the default filesystem if this is a fresh installation.
+4. Load persistent settings.
+5. Create and boot the Window Manager.
+6. Create and boot the IPC kernel.
+7. Create the .beep launcher.
+8. Register native system applications.
+9. Boot notifications.
+10. Boot the Desktop.
+11. Boot the Taskbar.
+12. Boot the Start Menu.
+13. Boot Search.
+14. Seed the inbox .beep applications.
+15. Restore/update the pinned application state.
+16. Register theme-change broadcasting.
+17. Mark BrowserOS as ready.
+
+If boot fails, BrowserOS replaces the document with a readable error screen containing the failure and a reload button.
+
+---
+
+# 4. Window Manager and Shell
+
+The Window Manager is responsible for the browser-based desktop's window system.
+
+It handles:
+
+- Window creation
+- Window movement
+- Window resizing
+- Focus
+- Z-index ordering
+- Window closing
+- Window titles
+- Window icons
+- Window progress indicators
+- Drag operations
+- System application registration
+- .beep application windows
+
+A .beep application is rendered inside a sandboxed iframe placed inside a BrowserOS window.
+
+Native system components instead mount their UI directly into BrowserOS-managed windows.
+
+## Desktop
+
+The Desktop manages the background environment and desktop icons.
+
+It can interact with the virtual filesystem and launch applications.
+
+## Taskbar
+
+The Taskbar provides:
+
+- Pinned applications
+- Running application buttons
+- System tray elements
+- Clock
+- Notifications
+- Application state updates
+
+## Start Menu
+
+The Start Menu provides a graphical application launcher and access to system functionality.
+
+## Search
+
+Search is also available through a keyboard shortcut:
+
+```
+Ctrl + Space
+```
+
+It can search across applications, files and other BrowserOS objects.
+
+---
+
+# 5. Virtual Filesystem
+
+BrowserOS has its own filesystem implemented on top of IndexedDB.
+
+It is not the user's real computer filesystem.
+
+The default structure is:
+
+```
+/
+├── Desktop/
+├── Documents/
+├── Pictures/
+├── Music/
+├── Downloads/
+└── Apps/
+```
+
+A default `/Documents/Welcome.txt` file is created on a fresh installation.
+
+## Filesystem operations
+
+The filesystem implements:
+
+- `read`
+- `stat`
+- `ls`
+- `write`
+- `mkdir`
+- `rm`
+- `rename`
+- `move`
+
+Files can contain text or base64-encoded binary data.
+
+The filesystem automatically derives MIME types from filenames for common formats.
+
+## Move operation
+
+Moving a file changes its stored path and preserves its contents and metadata.
+
+Moving a directory recursively moves its children as well.
+
+The filesystem refuses to overwrite an existing destination and refuses to remove non-empty directories.
+
+---
+
+# 6. .beep Applications
+
+A `.beep` file is a ZIP archive used as an installable BrowserOS application.
+
+Typical structure:
+
+```
+myapp.beep
+├── manifest.json
+├── main.js
+├── icon.png
+└── assets/
+```
+
+The entry point does not have to be called `main.js`; the manifest specifies the actual entry file.
+
+## Manifest
+
+Example:
 
 ```json
 {
@@ -193,398 +302,618 @@ myapp.beep  (zip)
 }
 ```
 
-### Field reference
+### Manifest fields
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | ✅ | Display name |
-| `version` | string | ✅ | App version (semver recommended) |
-| `icon` | string | ✅ | Path to icon image inside the zip |
-| `author` | string | — | Author name |
-| `bos` | string | ✅ | Minimum BOS version required. OS refuses to launch if incompatible |
-| `width` | number | — | Initial window width in px (default: 640) |
-| `height` | number | — | Initial window height in px (default: 480) |
-| `permissions` | string[] | ✅ | Declared permissions (see §4) |
-| `events` | string[] | ✅ | OS events this app receives |
-| `entry` | string | ✅ | JS file to execute as app entry point |
+| Field | Required | Purpose |
+|---|---|---|
+| `name` | Yes | Display name |
+| `version` | Yes | Application version |
+| `icon` | No in implementation | Icon path inside the archive |
+| `author` | No | Author |
+| `bos` | Yes | Required BOS version |
+| `width` | No | Initial window width, default 640 |
+| `height` | No | Initial window height, default 480 |
+| `permissions` | Yes | Requested permissions |
+| `events` | Yes | OS events requested by the app |
+| `entry` | Yes | JavaScript entry point |
+| `emoji` | No | Text/emoji fallback icon |
 
-### How the OS launches a .beep
+The launcher validates the required fields, checks the BOS version, extracts the icon when possible, and stores the application metadata in IndexedDB.
 
-1. Fetch the `.beep` file from the filesystem
-2. Unzip in memory using JSZip
-3. Parse `manifest.json`
-4. Check `bos` version compatibility — abort if incompatible
-5. Extract and cache `icon.png`
-6. Register app in `apps` IndexedDB store
-7. Create a window via the window manager
-8. Create `<iframe sandbox="allow-scripts">` inside the window
-9. Inject BOS client library into the iframe
-10. Inject `main.js` (or `entry`) into the iframe
-11. Begin handling postMessage from the iframe
+## Launching an application
 
-### Protected apps
+When a .beep application is launched:
 
-Inbox apps (shipped with the OS) have `protected: true` in the `apps` store. This is set by the OS at install time, not declared in the manifest. Protected apps cannot be uninstalled via `BOS.app.uninstall()`.
+1. BrowserOS obtains the ZIP data.
+2. JSZip extracts the archive in memory.
+3. `manifest.json` is parsed.
+4. The required BOS version is checked.
+5. The application icon is extracted.
+6. The application is registered in the application database if necessary.
+7. A BrowserOS window is created.
+8. A sandboxed iframe is created inside the window.
+9. The BOS client library is injected into the iframe.
+10. The application's entry script is injected.
+11. The application is registered with the kernel.
+12. A boot message containing OS information, theme, environment and manifest information is sent to the iframe.
+
+The launcher can also cache the raw ZIP data for applications seeded with the OS.
+
+## Application isolation
+
+The iframe uses:
+
+```html
+<iframe sandbox="allow-scripts">
+```
+
+The application therefore does not receive the normal privileges of the surrounding BrowserOS page.
+
+The application communicates with its parent through `postMessage`.
 
 ---
 
-## 4. Permissions Model
+# 7. postMessage IPC
 
-### Syntax
+The BrowserOS kernel acts as the communication layer between sandboxed applications and the operating system.
 
-```
-fs:{path}:read       read files/dirs at path and below
-fs:{path}:write      create, modify, delete at path and below
-ui.passive           notify, setTitle, setIcon, setProgress
-ui.interactive       alert, confirm, prompt
-network              BOS.net.fetch() — any URL, body always string
-```
+## Request
 
-### Examples
+An application sends:
 
 ```json
-// Paint — reads and writes pictures only
-"permissions": [
-  "fs:/Pictures:read",
-  "fs:/Pictures:write",
-  "ui.passive",
-  "ui.interactive"
-]
-
-// Weather app — network only
-"permissions": [
-  "network",
-  "ui.passive"
-]
-
-// File Manager inbox app — full filesystem
-"permissions": [
-  "fs:/:read",
-  "fs:/:write",
-  "ui.passive",
-  "ui.interactive"
-]
-
-// Text Editor — documents only
-"permissions": [
-  "fs:/Documents:read",
-  "fs:/Documents:write",
-  "fs:/Desktop:read",
-  "fs:/Desktop:write",
-  "ui.passive",
-  "ui.interactive"
-]
+{
+  "reqId": 42,
+  "type": "fs.read",
+  "payload": {
+    "path": "/Documents/notes.txt"
+  }
+}
 ```
 
-### Enforcement
-
-The postMessage kernel checks permissions before handling every message:
-
-```
-App sends fs.read for /Pictures/drawing.png
-→ OS checks: does this app have fs:/Pictures:read or fs:/:read?
-→ Yes → proceed
-→ No  → respond { ok: false, error: 'Permission denied' }
-```
-
-Path permission matching is prefix-based — `fs:/Documents:read` grants access to `/Documents/notes.txt`, `/Documents/work/report.txt`, etc.
-
-### Events
-
-Events are declared separately from permissions:
+## Successful response
 
 ```json
-"events": ["themeChanged", "focus", "blur"]
+{
+  "reqId": 42,
+  "ok": true,
+  "result": "hello"
+}
 ```
 
-Available events:
-| Event | Payload | Description |
-|-------|---------|-------------|
-| `themeChanged` | `{ accent, font, darkMode, wallpaper }` | OS theme was changed |
-| `focus` | `{}` | App window gained focus |
-| `blur` | `{}` | App window lost focus |
+## Error response
+
+```json
+{
+  "reqId": 42,
+  "ok": false,
+  "error": "Permission denied"
+}
+```
+
+Each application instance has its own incrementing request counter.
+
+The kernel identifies the application instance from the message source and uses the registered application's permissions and metadata when processing the request.
+
+## Events
+
+OS events do not use request IDs.
+
+Example:
+
+```json
+{
+  "type": "event.themeChanged",
+  "payload": {
+    "accent": "#0078d4",
+    "font": "...",
+    "darkMode": true
+  }
+}
+```
+
+The kernel broadcasts events only to applications that declared the corresponding event in their manifest.
+
+## Additional UI IPC
+
+The implemented kernel also supports drag-related UI messages:
+
+- `ui.startDrag`
+- `ui.dragMove`
+- `ui.endDrag`
+
+These allow sandboxed applications to participate in BrowserOS's window/file dragging system.
 
 ---
 
-## 5. BOS v2 API
+# 8. Permissions
 
-The BOS client library is injected into every app iframe at launch. It wraps all postMessage communication into a clean async API.
+Permissions are attached to .beep application instances and checked by the kernel before the requested operation is performed.
 
-### BOS.fs — Filesystem
+## Filesystem permissions
+
+```
+fs:{path}:read
+fs:{path}:write
+```
+
+For example:
+
+```
+fs:/Documents:read
+```
+
+allows access to files underneath `/Documents`.
+
+Root permissions can be granted with:
+
+```
+fs:/:read
+fs:/:write
+```
+
+Path matching is based on the requested path and the declared permission scope.
+
+## UI permissions
+
+```
+ui.passive
+ui.interactive
+```
+
+Passive UI operations include:
+
+- Notifications
+- Window title
+- Window icon
+- Window progress
+
+Interactive UI operations include:
+
+- Alert
+- Confirm
+- Prompt
+
+## Network permission
+
+```
+network
+```
+
+This allows the application to use:
+
+```
+BOS.net.fetch()
+```
+
+The kernel performs the actual browser `fetch()` call.
+
+---
+
+# 9. BOS API
+
+The **BrowserOS API (BOS)** is the JavaScript API exposed to sandboxed applications.
+
+Applications are intended to use `BOS.*` rather than calling `postMessage` directly.
+
+## BOS.fs
 
 ```js
-// Read file contents
-const content = await BOS.fs.read(path)
-// → string | null
-// Requires: fs:{path}:read
-
-// Get file/dir metadata
-const info = await BOS.fs.stat(path)
-// → { type, size, name, created, modified, mime } | null
-// Requires: fs:{path}:read
-
-// List directory contents
-const items = await BOS.fs.ls(path)
-// → [{ type, size, name, created, modified, mime }] | null
-// Requires: fs:{path}:read
-
-// Write file (creates or overwrites)
+await BOS.fs.read(path)
+await BOS.fs.stat(path)
+await BOS.fs.ls(path)
 await BOS.fs.write(path, content)
-// → ok | error
-// Requires: fs:{path}:write
-
-// Create directory
 await BOS.fs.mkdir(path)
-// → ok | error
-// Requires: fs:{path}:write
-
-// Delete file or empty directory
 await BOS.fs.rm(path)
-// → ok | error
-// Non-empty directories return error — rm each item first
-// Requires: fs:{path}:write
-
-// Rename in place
 await BOS.fs.rename(path, newName)
-// newName is just the name, not a full path
-// → ok | error
-// Requires: fs:{path}:write
-
-// Move to new location
 await BOS.fs.move(src, dest)
-// → ok | error
-// Requires: fs:{src}:read, fs:{src}:write, fs:{dest}:write
 ```
 
-### BOS.ui — User Interface
+## BOS.ui
 
 ```js
-// Passive (requires ui.passive)
-await BOS.ui.notify(message)        // toast notification → ok
-await BOS.ui.setTitle(title)        // update window title → ok
-await BOS.ui.setIcon(icon)          // update window icon → ok
-await BOS.ui.setProgress(value)     // taskbar progress 0-100, -1 to clear → ok
+await BOS.ui.notify(message)
+await BOS.ui.setTitle(title)
+await BOS.ui.setIcon(icon)
+await BOS.ui.setProgress(value)
 
-// Interactive (requires ui.interactive)
-await BOS.ui.alert(message)         // → ok
-await BOS.ui.confirm(message)       // → bool
-await BOS.ui.prompt(message, default) // → string | null
+await BOS.ui.alert(message)
+await BOS.ui.confirm(message)
+await BOS.ui.prompt(message, defaultValue)
 ```
 
-### BOS.app — App Management
+The implemented API also exposes drag operations to applications:
+
+```js
+await BOS.ui.startDrag(path, name, icon)
+await BOS.ui.dragMove(x, y)
+await BOS.ui.endDrag(dropped)
+```
+
+## BOS.app
 
 ```js
 await BOS.app.open(appId)
-// Open a built-in system app by ID
-// → ok | error
-// No permission required
-
 await BOS.app.launch(path)
-// Launch a .beep app by filesystem path
-// → ok | error
-// Requires: fs:{path}:read
-
 await BOS.app.install(path)
-// Install a .beep from path into /Apps/
-// → ok | error
-// Requires: fs:{path}:read, fs:/Apps:write
-
 await BOS.app.uninstall(id)
-// Uninstall an app by id
-// → ok | error
-// Blocked if app is protected
-// Requires: fs:/Apps:write
-
 await BOS.app.self()
-// Get info about the current running app
-// → { name, version, path, permissions, events }
-// No permission required
 ```
 
-### BOS.net — Networking
+System applications are opened through the Window Manager. .beep applications are launched through the launcher.
+
+Protected applications cannot be uninstalled.
+
+## BOS.net
 
 ```js
 await BOS.net.fetch(url, options)
-// Wraps native fetch()
-// options: { method, headers, body } — mirrors standard fetch API
-// → { ok, status, headers, body }
-// body is always a string
-// Requires: network
 ```
 
-### BOS.os — System Info
+The returned object contains the HTTP status, success state, headers and response body.
+
+The current implementation exposes the response body as text.
+
+## BOS.os
 
 ```js
-// Synchronous — data injected at iframe launch time
 BOS.os.version()
-// → "2.0.0"
-
 BOS.os.theme()
-// → { accent, font, darkMode, wallpaper }
-
 BOS.os.env()
-// → { locale, timezone, screen: { width, height } }
 ```
 
-### BOS.on — Event Listener
+These provide:
+
+- BrowserOS version
+- Current theme
+- Locale
+- Time zone
+- BrowserOS viewport/screen dimensions
+
+## BOS.on
+
+Applications can register event handlers:
 
 ```js
-BOS.on(event, callback)
-// Listen for OS events declared in manifest
-// No permission required — gated by manifest events[] instead
-
-BOS.on('themeChanged', ({ accent, font, darkMode, wallpaper }) => {
-  // update app UI to match new theme
-});
-
-BOS.on('focus', () => { /* window gained focus */ });
-BOS.on('blur',  () => { /* window lost focus  */ });
+BOS.on('themeChanged', callback)
+BOS.on('focus', callback)
+BOS.on('blur', callback)
 ```
+
+Event delivery is controlled by the manifest's `events` list.
 
 ---
 
-## 6. IndexedDB Schema
+# 10. IndexedDB
 
-Database name: `BrowserOS`
-Database version: `2`
+BrowserOS uses an IndexedDB database named:
 
-### Object Store: `fs`
-
-Primary key: `path`
-Indexes: `modified` (for recent files queries)
-
-```js
-{
-  path:     '/Documents/notes.txt',  // primary key
-  type:     'file',                  // 'file' | 'dir'
-  content:  'hello world',           // string, null for dirs
-  encoding: 'utf8',                  // 'utf8' | 'base64'
-  size:     11,                      // bytes
-  mime:     'text/plain',            // optional
-  created:  1700000000000,           // unix ms timestamp
-  modified: 1700000000000,           // unix ms timestamp
-}
+```
+BrowserOS
 ```
 
-For directories, `content` is `null` and `encoding` is `null`.
+The current database version is 2.
 
-`ls(path)` is implemented as an IndexedDB range query on `path` — all records where path starts with `{path}/` and contains no further `/`. Fast, no children array needed.
+The major object stores are:
 
-Binary files use `encoding: 'base64'`. The OS auto-detects at write time based on mime type. `BOS.fs.read()` always returns a string — apps that need binary data decode base64 themselves.
+- `fs`
+- `apps`
+- `settings`
 
-### Object Store: `apps`
+## fs store
 
-Primary key: `id`
+Primary key:
+
+```
+path
+```
+
+A filesystem record resembles:
 
 ```js
 {
-  id:          'paint',
-  path:        '/Apps/paint.beep',
-  name:        'Paint',
-  version:     '2.0',
-  icon:        'data:image/png;base64,...',  // extracted from zip at install
-  permissions: ['fs:/Pictures:read', 'fs:/Pictures:write', 'ui.passive'],
-  events:      ['themeChanged'],
-  entry:       'main.js',
-  bos:         '2.0',
-  installedAt: 1700000000000,
-  protected:   false,   // true for inbox apps, set by OS not manifest
+  path: "/Documents/notes.txt",
+  type: "file",
+  content: "hello world",
+  encoding: "utf8",
+  size: 11,
+  mime: "text/plain",
+  created: 1700000000000,
+  modified: 1700000000000
 }
 ```
 
-### Object Store: `settings`
+Directories use `type: "dir"` and have no content.
 
-Primary key: `key`
+The database layer provides listing and recent-file queries used by the filesystem and search components.
+
+## apps store
+
+The application store contains installed .beep metadata.
+
+Typical fields include:
 
 ```js
-{ key: 'accent',      value: '#0078d4' }
-{ key: 'darkMode',    value: true }
-{ key: 'font',        value: "'Segoe UI', sans-serif" }
-{ key: 'wallpaper',   value: 'linear-gradient(...)' }
-{ key: 'pinnedApps',  value: ['filemanager', 'texteditor', 'terminal'] }
-{ key: 'userProfile', value: { name: 'John', avatar: null } }
+{
+  id,
+  path,
+  name,
+  version,
+  icon,
+  emoji,
+  permissions,
+  events,
+  entry,
+  bos,
+  width,
+  height,
+  installedAt,
+  protected
+}
+```
+
+Inbox applications may additionally store their raw ZIP data for later launching.
+
+## settings store
+
+Settings are stored as key/value records.
+
+Examples include:
+
+- Accent color
+- Dark mode
+- Font
+- Wallpaper
+- Pinned applications
+- User profile
+
+---
+
+# 11. Native and Sandboxed Components
+
+The original design described most built-in applications as .beep applications. The implementation has since evolved into a more explicit split.
+
+## Native components
+
+These run directly inside BrowserOS and have access to OS internals.
+
+Currently registered native system applications/components include:
+
+- Settings
+- File Manager
+- Browser
+- App Store
+- Music Player
+- Text Editor
+- Terminal
+- System Monitor
+- Paint
+
+The core shell also contains:
+
+- Desktop
+- Taskbar
+- Start Menu
+- Search
+- Notifications
+
+Native components are useful when an application needs direct access to BrowserOS internals or when it forms part of the shell itself.
+
+## Sandboxed .beep applications
+
+The .beep system remains the application format for isolated applications.
+
+The current boot sequence seeds these inbox .beep applications:
+
+- Calculator
+- Markdown Viewer
+
+Additional .beep applications can be installed through the application system.
+
+This means BrowserOS v2 currently uses a **hybrid application model** rather than making every built-in application a .beep package.
+
+---
+
+# 12. App Store
+
+BrowserOS includes an App Store integrated with the launcher and virtual filesystem.
+
+The App Store is currently implemented as a native BrowserOS system application.
+
+Its purpose is to discover and install .beep applications rather than to replace the underlying launcher.
+
+The installation flow is conceptually:
+
+```
+App Store
+   ↓
+download .beep
+   ↓
+BrowserOS filesystem
+   ↓
+Launcher
+   ↓
+manifest validation
+   ↓
+application registration
+   ↓
+sandboxed launch
+```
+
+The App Store is therefore an application distribution interface on top of the .beep system.
+
+The repository's current runtime has a functioning App Store, while the exact catalogue can change independently of the operating-system core.
+
+---
+
+# 13. Drag and Drop
+
+BrowserOS implements its own desktop drag system in addition to normal browser drag-and-drop.
+
+The Window Manager can track an internal drag operation, including:
+
+- Source application/window
+- Virtual filesystem path
+- File name
+- Icon
+- Drag ghost position
+- Drop completion
+
+The File Manager supports dragging files outward and dropping items onto folders.
+
+For example:
+
+```
+/Documents/example.txt
+        ↓ drag
+Desktop
+        ↓
+/Desktop/example.txt
+```
+
+The File Manager also implements folder drop targets for moving BrowserOS files.
+
+Host operating-system files are handled separately through the browser's normal `File` drag/drop mechanism and can be imported into the virtual filesystem.
+
+Because BrowserOS has both host-file drag/drop and internal virtual-file drag/drop, these two paths are intentionally distinct.
+
+---
+
+# 14. Current Application Model
+
+BrowserOS currently has two application categories.
+
+### Native system applications
+
+These are JavaScript modules loaded by the operating system itself.
+
+They have direct access to BrowserOS internals and are registered through the Window Manager.
+
+### .beep applications
+
+These are packaged applications loaded from ZIP-based `.beep` archives.
+
+They run in sandboxed iframes and communicate through BOS.
+
+This distinction is important:
+
+> **Native does not mean "more important" and .beep does not mean "less capable." They are different execution environments.**
+
+Native applications are appropriate for components that need OS-level access. .beep applications are appropriate for isolated applications using the public BOS interface.
+
+---
+
+# 15. Design Notes and Limitations
+
+BrowserOS is an experimental browser operating environment rather than a replacement for a conventional operating system.
+
+## Browser dependency
+
+The system depends on browser APIs including:
+
+- IndexedDB
+- iframe sandboxing
+- postMessage
+- Fetch
+- Web Audio/media APIs where applicable
+- DOM and CSS
+
+Its capabilities are therefore bounded by the browser.
+
+## Virtual filesystem
+
+The BrowserOS filesystem is independent of the host filesystem.
+
+A BrowserOS file such as:
+
+```
+/Documents/notes.txt
+```
+
+is an IndexedDB record, not a file automatically visible in the host operating system.
+
+Import/export operations are required to move data between the two environments.
+
+## Security model
+
+Sandboxing and permission checks provide separation between .beep applications and BrowserOS.
+
+However, BrowserOS is still experimental. The permission model should be treated as an application-level security boundary rather than as a substitute for a native operating-system security model.
+
+## Documentation status
+
+The original specification was written during the design phase in March 2026.
+
+The implementation has since diverged in several places, particularly:
+
+- More components became native rather than .beep applications.
+- The kernel gained drag-related IPC.
+- The launcher gained cached ZIP data for seeded apps.
+- The manifest implementation supports an emoji icon fallback.
+- The App Store and other shell components are implemented directly in `src/shell/`.
+- The current boot sequence seeds only the .beep applications that are actually present in the repository's inbox configuration.
+
+This document is intended to describe the current implementation rather than preserve the original planned architecture.
+
+---
+
+# 16. Project History
+
+## BrowserOS v1
+
+BrowserOS v1 used a shared JavaScript environment for applications.
+
+Applications could access the OS environment directly, which made development simple but provided little isolation.
+
+## BrowserOS v2
+
+BrowserOS v2 introduced:
+
+- Sandboxed .beep applications
+- postMessage IPC
+- BOS API
+- IndexedDB filesystem
+- Persistent settings
+- A rewritten Window Manager
+- Native system applications
+- Application installation
+- App Store infrastructure
+- Desktop and shell integration
+
+The current project is a hybrid of the original v2 architecture and features added during implementation.
+
+---
+
+## Version History
+
+| Version | Description |
+|---|---|
+| 2.0.0 | Initial BrowserOS v2 architecture and implementation |
+| 2.x development | Expanded native shell, application system, App Store, drag/drop and other desktop features |
+
+---
+
+## Repository Structure
+
+The major source areas are:
+
+```
+browseros2/
+├── apps/                 # .beep application packages
+├── src/
+│   ├── apps/             # application launcher and related logic
+│   ├── bos/              # BOS client library
+│   ├── fs/               # IndexedDB and virtual filesystem
+│   ├── kernel/           # IPC and permission system
+│   ├── shell/            # Desktop and native system applications
+│   ├── ui/               # Settings and notifications
+│   └── wm/               # Window Manager
+├── index.html             # Browser entry point
+├── README.md              # Short project description
+└── SPEC.md                # This document
 ```
 
 ---
 
-## 7. Native vs .beep Split
-
-Modelled after the Windows NT architecture — true system components are native, inbox apps are `.beep` with broad permissions.
-
-### Native system components
-
-Cannot be removed. Run outside the sandbox. Direct access to OS internals.
-
-| Component | Description |
-|-----------|-------------|
-| Kernel | postMessage router, permission enforcer |
-| Window Manager | Drag, resize, z-index, focus |
-| IndexedDB Filesystem | Storage layer |
-| Shell / Desktop | Wallpaper, desktop icons, right-click |
-| Taskbar | Pinned apps, window buttons, system tray |
-| Login Screen | User profiles |
-| Settings | Touches OS internals directly |
-
-### Inbox `.beep` apps
-
-Ship with the OS, `protected: true` in the apps store. Cannot be uninstalled. Run inside the sandbox like any third party app, just with broader permissions declared in their manifests.
-
-| App | Key Permissions |
-|-----|----------------|
-| File Manager | `fs:/:read`, `fs:/:write` |
-| Text Editor | `fs:/Documents:read`, `fs:/Documents:write` |
-| Terminal | `fs:/:read`, `fs:/:write` |
-| Calculator | `ui.passive`, `ui.interactive` |
-| Browser | `network`, `ui.passive` |
-| Paint | `fs:/Pictures:read`, `fs:/Pictures:write` |
-| App Store | `network`, `fs:/Apps:write`, `ui.passive`, `ui.interactive` |
-| Music Player | `fs:/Music:read`, `ui.passive` |
-| Markdown Viewer | `fs:/Documents:read`, `ui.passive` |
-| System Monitor | `ui.passive` |
-
----
-
-## 8. Build Order
-
-### Evening 1 — The invisible foundation
-
-| Step | Component | Est. Time |
-|------|-----------|-----------|
-| 1 | IndexedDB wrapper class | 30 min |
-| 2 | Filesystem (all fs.* methods, default seed) | 30 min |
-| 3 | postMessage kernel (router, permission enforcer, app registry) | 45 min |
-| 4 | BOS client library (injected into iframes) | 30 min |
-| 5 | Window manager (rewrite from v1, now wraps iframes) | 45 min |
-| 6 | .beep launcher (JSZip unpack, manifest parse, iframe boot) | 30 min |
-
-### Evening 2 — The visible OS
-
-| Step | Component | Est. Time |
-|------|-----------|-----------|
-| 7 | Shell + Desktop (wallpaper, icons, right-click, restore from IDB) | 30 min |
-| 8 | Taskbar (pinned apps, window buttons, system tray, clock, bell) | 45 min |
-| 9 | Notification center (history, unread count) | 20 min |
-| 10 | Ctrl+Space switcher (apps + files + settings, keyboard driven) | 30 min |
-| 11 | Settings app (native, accent/wallpaper/font/darkmode/permissions) | 30 min |
-| 12 | Port inbox apps to async BOS v2 API | 45 min |
-| 13 | New apps (Markdown Viewer, Music Player, System Monitor) | 30 min |
-| 14 | App Store (fetch index.json, display, install via BOS.app.install) | 30 min |
-
-**Total: ~7 hours across two evenings**
-
-Risk items:
-- Step 3 (postMessage kernel) — most complex single component
-- Step 12 (porting apps) — tedious, async BOS may surface unexpected issues
-
----
-
-## Appendix: Version History
-
-| Version | Notes |
-|---------|-------|
-| 2.0.0 | Initial v2 release |
-
----
-
-*BrowserOS v2 Spec — authored during design phase, March 2026*
+*BrowserOS v2 — technical and general reference*
 *Licensed under AGPL-3.0*
