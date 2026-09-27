@@ -370,7 +370,6 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
       // ── Context menus ─────────────────────────────────────────────────────────
 
       function showItemMenu(x, y, item) {
-        const ext = item.name.split('.').pop().toLowerCase();
         const isImage = isImageFile(item.name);
         const items = [
           { label: '📂 Open', action: () => {
