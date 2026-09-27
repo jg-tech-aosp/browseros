@@ -246,6 +246,7 @@ export class StartMenu {
           () => this._launchApp(app.id)
         );
         row.dataset.searchResult = '1';
+        this._bindAppContextMenu(row, app.id);
         this._body.appendChild(row);
       }
     }
