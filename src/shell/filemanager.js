@@ -229,7 +229,8 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
               const srcPath = e.dataTransfer.getData('text/plain');
               if (!srcPath || srcPath === fullPath(item.name)) return;
               const filename = srcPath.split('/').pop();
-              await fs.move(srcPath, fullPath(item.name) + '/' + filename);
+              const result = await fs.move(srcPath, fullPath(item.name) + '/' + filename);
+              if (!result.ok) { wm.notify('Move failed: ' + result.error); return; }
               render();
               wm.notify('Moved "' + filename + '" into "' + item.name + '"');
             });
