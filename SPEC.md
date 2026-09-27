@@ -488,6 +488,14 @@ BOS.net.fetch()
 
 The kernel performs the actual browser `fetch()` call.
 
+## Persistent app storage permission
+
+`app.storage` grants access to a private key/value store through `BOS.storage`. The manifest requests this permission; the user approves it during installation. Only approved permissions are saved as the app's grants and passed to the kernel.
+
+Each installation receives an OS-generated storage namespace. Apps cannot choose or read another app's namespace. Windows of the same installation share the store. Reinstalling creates a fresh namespace, and uninstalling clears the previous namespace.
+
+Storage is separate from the virtual filesystem and does not grant file access. Each value is limited to 64 KiB and each installation to 256 KiB total. Keys must be 1–128 characters.
+
 ---
 
 # 9. BOS API
@@ -509,6 +517,19 @@ await BOS.fs.rm(path)
 await BOS.fs.rename(path, newName)
 await BOS.fs.move(src, dest)
 ```
+
+## BOS.storage
+
+Available when the user granted `app.storage`:
+
+```js
+await BOS.storage.get(key, defaultValue) // missing keys return defaultValue (null by default)
+await BOS.storage.set(key, value)       // JSON-compatible values
+await BOS.storage.remove(key)
+await BOS.storage.keys()
+```
+
+Storage is private to the installation and persists across app windows, launches, and BrowserOS reloads. Uninstalling clears it; reinstalling starts with an empty store.
 
 ## BOS.ui
 
@@ -593,7 +614,7 @@ BrowserOS uses an IndexedDB database named:
 BrowserOS
 ```
 
-The current database version is 2.
+The current database version is 3.
 
 The major object stores are:
 
@@ -654,6 +675,8 @@ Typical fields include:
 ```
 
 Inbox applications may additionally store their raw ZIP data for later launching.
+
+The app record also stores the granted permissions and an OS-generated `storageId`. Storage records are keyed by that private ID and app key; app code never supplies the ID.
 
 ## settings store
 
