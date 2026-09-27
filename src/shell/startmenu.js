@@ -42,9 +42,9 @@ export class StartMenu {
       left:8px;
       width:380px;
       max-height:560px;
-      background:rgba(15,12,35,0.97);
+      background:var(--wm-panel-bg);
       backdrop-filter:blur(30px);
-      border:1px solid rgba(255,255,255,0.12);
+      border:1px solid var(--wm-panel-border);
       border-radius:14px;
       box-shadow:0 16px 48px rgba(0,0,0,0.6);
       z-index:9200;
@@ -60,9 +60,9 @@ export class StartMenu {
     searchInput.id = 'bos-startmenu-search';
     searchInput.placeholder = 'Search apps, files...';
     searchInput.style.cssText = `
-      width:100%;background:rgba(255,255,255,0.08);
-      border:1px solid rgba(255,255,255,0.12);border-radius:8px;
-      color:#e0e0ff;padding:8px 12px;font-size:14px;outline:none;
+      width:100%;background:var(--wm-control-bg);
+      border:1px solid var(--wm-panel-border);border-radius:8px;
+      color:var(--wm-text);padding:8px 12px;font-size:14px;outline:none;
       font-family:inherit;
     `;
     searchInput.addEventListener('input', () => this._onSearch(searchInput.value));
@@ -83,18 +83,18 @@ export class StartMenu {
 
     // Footer
     const footer = document.createElement('div');
-    footer.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-top:1px solid rgba(255,255,255,0.07);flex-shrink:0';
+    footer.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-top:1px solid var(--wm-separator);flex-shrink:0';
 
     const userEl = document.createElement('div');
-    userEl.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;color:#e0e0ff';
+    userEl.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;color:var(--wm-text)';
     userEl.innerHTML = '<span style="font-size:20px">👤</span><span>User</span>';
 
     const powerBtn = document.createElement('button');
     powerBtn.textContent = '⏻';
     powerBtn.title = 'Power';
-    powerBtn.style.cssText = 'background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e0e0ff;width:32px;height:32px;cursor:pointer;font-size:16px;transition:background 0.15s';
+    powerBtn.style.cssText = 'background:var(--wm-control-bg);border:1px solid var(--wm-control-hover);border-radius:6px;color:var(--wm-text);width:32px;height:32px;cursor:pointer;font-size:16px;transition:background 0.15s';
     powerBtn.onmouseenter = () => powerBtn.style.background = 'rgba(200,50,50,0.3)';
-    powerBtn.onmouseleave = () => powerBtn.style.background = 'rgba(255,255,255,0.07)';
+    powerBtn.onmouseleave = () => powerBtn.style.background = 'var(--wm-control-bg)';
     powerBtn.onclick = () => {
       if (confirm('Reload BrowserOS?')) location.reload();
     };
@@ -102,9 +102,9 @@ export class StartMenu {
     const settingsBtn = document.createElement('button');
     settingsBtn.textContent = '⚙️';
     settingsBtn.title = 'Settings';
-    settingsBtn.style.cssText = 'background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e0e0ff;width:32px;height:32px;cursor:pointer;font-size:16px;transition:background 0.15s';
-    settingsBtn.onmouseenter = () => settingsBtn.style.background = 'rgba(255,255,255,0.15)';
-    settingsBtn.onmouseleave = () => settingsBtn.style.background = 'rgba(255,255,255,0.07)';
+    settingsBtn.style.cssText = 'background:var(--wm-control-bg);border:1px solid var(--wm-control-hover);border-radius:6px;color:var(--wm-text);width:32px;height:32px;cursor:pointer;font-size:16px;transition:background 0.15s';
+    settingsBtn.onmouseenter = () => settingsBtn.style.background = 'var(--wm-control-hover)';
+    settingsBtn.onmouseleave = () => settingsBtn.style.background = 'var(--wm-control-bg)';
     settingsBtn.onclick = () => { this._wm.openSystemApp('settings'); this.close(); };
 
     const btnGroup = document.createElement('div');
@@ -267,7 +267,7 @@ export class StartMenu {
 
     if (!matchedApps.length && !matchedFiles.length) {
       const empty = document.createElement('div');
-      empty.style.cssText = 'padding:32px;text-align:center;color:rgba(255,255,255,0.3);font-size:13px';
+      empty.style.cssText = 'padding:32px;text-align:center;color:var(--wm-text-dim);font-size:13px';
       empty.textContent = 'No results for "' + query + '"';
       this._body.appendChild(empty);
     }
@@ -316,12 +316,12 @@ export class StartMenu {
   _makeTile(label, icon, onClick) {
     const tile = document.createElement('div');
     tile.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 6px;border-radius:8px;cursor:pointer;text-align:center;transition:background 0.15s';
-    tile.onmouseenter = () => tile.style.background = 'rgba(255,255,255,0.1)';
+    tile.onmouseenter = () => tile.style.background = 'var(--wm-control-hover)';
     tile.onmouseleave = () => tile.style.background = '';
     tile.onclick = onClick;
 
     const iconEl = document.createElement('div');
-    iconEl.style.cssText = 'width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:24px;border-radius:8px;background:rgba(255,255,255,0.07)';
+    iconEl.style.cssText = 'width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:24px;border-radius:8px;background:var(--wm-control-bg)';
     if (icon && icon.startsWith('data:')) {
       iconEl.innerHTML = `<img src="${icon}" style="width:28px;height:28px;border-radius:4px;object-fit:cover">`;
     } else {
@@ -329,7 +329,7 @@ export class StartMenu {
     }
 
     const labelEl = document.createElement('div');
-    labelEl.style.cssText = 'font-size:11px;color:#e0e0ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%';
+    labelEl.style.cssText = 'font-size:11px;color:var(--wm-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%';
     labelEl.textContent = label;
 
     tile.appendChild(iconEl);
@@ -341,7 +341,7 @@ export class StartMenu {
     const row = document.createElement('div');
     row.className = 'sm-row';
     row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;cursor:pointer;transition:background 0.15s';
-    row.onmouseenter = () => row.style.background = 'rgba(255,255,255,0.07)';
+    row.onmouseenter = () => row.style.background = 'var(--wm-control-bg)';
     row.onmouseleave = () => { if (row.style.background !== 'rgba(0,120,212,0.25)') row.style.background = ''; };
     row.onclick = onClick;
 
@@ -356,8 +356,8 @@ export class StartMenu {
     const text = document.createElement('div');
     text.style.cssText = 'flex:1;overflow:hidden';
     text.innerHTML = `
-      <div style="font-size:13px;color:#e0e0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${label}</div>
-      <div style="font-size:11px;color:rgba(255,255,255,0.35);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sublabel}</div>
+      <div style="font-size:13px;color:var(--wm-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${label}</div>
+      <div style="font-size:11px;color:var(--wm-text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sublabel}</div>
     `;
 
     row.appendChild(iconEl);
