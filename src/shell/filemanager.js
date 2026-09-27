@@ -267,18 +267,6 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
           });
         });
 
-        // Listen for drops from desktop via OS event
-        document.addEventListener('bos:dropOnFM', async e => {
-          if (!container.isConnected) { document.removeEventListener('bos:dropOnFM', arguments.callee); return; }
-          const { path } = e.detail;
-          if (!path) return;
-          const filename = path.split('/').pop();
-          const destPath = fullPath(filename);
-          if (path === destPath) return;
-          await fs.move(path, destPath);
-          render();
-          wm.notify('Moved "' + filename + '" to ' + cwd);
-        });
       }
 
       // ── /Apps virtual directory ───────────────────────────────────────────────
@@ -485,7 +473,25 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
         fileInput.value = '';
       };
 
+      // Receive desktop drags once per File Manager window, not once per render.
+      const handleDesktopDrop = async e => {
+        const { path } = e.detail || {};
+        if (!path) return;
+        const filename = path.split('/').pop();
+        const destPath = fullPath(filename);
+        if (path === destPath) return;
+        const result = await fs.move(path, destPath);
+        if (result?.ok === false) {
+          wm.notify('Could not move "' + filename + '": ' + result.error);
+          return;
+        }
+        render();
+        wm.notify('Moved "' + filename + '" to ' + cwd);
+      };
+      document.addEventListener('bos:dropOnFM', handleDesktopDrop);
+
       render();
+      return () => document.removeEventListener('bos:dropOnFM', handleDesktopDrop);
     }
   });
 }
