@@ -53,6 +53,7 @@ It runs inside a normal web browser but provides many concepts normally associat
 - System Monitor
 - Calculator
 - Markdown Viewer
+- Info
 - App Store
 - Sandboxed third-party applications
 

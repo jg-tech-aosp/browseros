@@ -45,6 +45,7 @@ import { Search }     from './shell/search.js';
 const INBOX_APPS = [
   'calculator',
   'markdownviewer',
+  'info',
 ];
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
