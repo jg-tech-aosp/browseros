@@ -267,7 +267,14 @@ export class Desktop {
       return;
     }
     const ext = name.split('.').pop().toLowerCase();
-    if (ext === 'writer') {
+    if (ext === 'stage') {
+      if (!await this._db.apps.get('stage')) {
+        this._wm.notify('Install Stage from the App Store to open this presentation');
+        return;
+      }
+      try { await this._launcher.launchById('stage', { file: path }); }
+      catch (error) { this._wm.notify('Could not open Stage: ' + error.message); }
+    } else if (ext === 'writer') {
       if (!await this._db.apps.get('writer')) {
         this._wm.notify('Install Writer from the App Store to open this document');
         return;
