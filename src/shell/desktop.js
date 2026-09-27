@@ -1,3 +1,5 @@
+import { isImageFile } from './imageviewer.js';
+
 /**
  * BrowserOS v2 — Desktop
  * src/shell/desktop.js
@@ -268,8 +270,8 @@ export class Desktop {
       this._wm.openSystemApp('texteditor', { file: path });
     } else if (['mp3','wav','ogg'].includes(ext)) {
       this._wm.openSystemApp('musicplayer', { file: path });
-    } else if (['png','jpg','jpeg','gif','webp'].includes(ext)) {
-      this._wm.notify('Image viewer coming soon');
+    } else if (isImageFile(name)) {
+      this._wm.openSystemApp('imageviewer', { file: path });
     } else {
       this._wm.notify('No app to open: ' + name);
     }
