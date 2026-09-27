@@ -164,7 +164,6 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
       el.innerHTML = '<div style="height:52px;background:' + wp.val + '"></div><div style="font-size:11px;text-align:center;padding:4px;color:var(--wm-text)">' + wp.label + '</div>';
       el.onclick = async function() {
         await settings.set('wallpaper', wp.val);
-        document.body.style.background = wp.val;
         wpGrid.querySelectorAll('div[style*="border-radius"]').forEach(function(s) { s.style.borderColor = 'transparent'; });
         el.style.borderColor = 'var(--wm-accent)';
         kernel.broadcast('themeChanged', settings.getTheme());
