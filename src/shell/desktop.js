@@ -73,7 +73,9 @@ export class Desktop {
     const positions = {};
     this._icons.forEach((ic, key) => {
       positions[key] = { col: ic.gridX, row: ic.gridY };
+      if (ic.shortcut) positions[key].shortcut = true;
     });
+    this._positions = positions;
     await this._fs.write('/Desktop/.iconpositions', JSON.stringify(positions));
   }
 
@@ -85,9 +87,18 @@ export class Desktop {
 
     await this._addDefaultAppIcons();
     await this._restoreDesktopFiles();
+    await this._restoreAppShortcuts();
 
-    document.addEventListener('bos:appInstalled',   () => this._restoreDesktopFiles());
-    document.addEventListener('bos:appUninstalled', () => this._restoreDesktopFiles());
+    document.addEventListener('bos:createDesktopShortcut', event => {
+      const appId = event.detail?.appId;
+      if (appId) this._addAppShortcut(appId);
+    });
+    document.addEventListener('bos:appInstalled', () => this._restoreDesktopFiles());
+    document.addEventListener('bos:appUninstalled', async event => {
+      const appId = event.detail?.appId;
+      if (appId) await this._removeAppShortcut(appId);
+      await this._restoreDesktopFiles();
+    });
 
     this._desktop.addEventListener('click', e => {
       if (!e.target.closest('.bos-desktop-icon')) this._deselectAll();
@@ -125,6 +136,58 @@ export class Desktop {
     }
   }
 
+  async _addAppShortcut(appId) {
+    if (this._icons.has(appId)) {
+      const existing = this._icons.get(appId);
+      this._wm.notify(existing.shortcut
+        ? 'That app already has a desktop shortcut'
+        : existing.label + ' is already on the Desktop');
+      return;
+    }
+    const app = await this._db.apps.get(appId);
+    const systemApp = this._wm._systemApps.get(appId);
+    if (!app && !systemApp) {
+      this._wm.notify('That app is no longer installed');
+      return;
+    }
+    const label = app?.name || systemApp.title;
+    const icon = app?.icon || app?.emoji || systemApp?.icon || '⚡';
+    this.addIcon({ label, icon, appId, shortcut: true });
+    await this._savePositions();
+    this._wm.notify('Created desktop shortcut for ' + label);
+  }
+
+  async _restoreAppShortcuts() {
+    let changed = false;
+    for (const [appId, saved] of Object.entries(this._positions)) {
+      if (!saved?.shortcut || this._icons.has(appId)) continue;
+      const app = await this._db.apps.get(appId);
+      const systemApp = this._wm._systemApps.get(appId);
+      if (!app && !systemApp) {
+        delete this._positions[appId];
+        changed = true;
+        continue;
+      }
+      this.addIcon({
+        label: app?.name || systemApp.title,
+        icon: app?.icon || app?.emoji || systemApp?.icon || '⚡',
+        appId,
+        shortcut: true,
+      });
+    }
+    if (changed) await this._savePositions();
+  }
+
+  async _removeAppShortcut(appId) {
+    const icon = this._icons.get(appId);
+    if (!icon?.shortcut) return;
+    this._freeCell(icon.gridX, icon.gridY);
+    icon.el.remove();
+    this._icons.delete(appId);
+    delete this._positions[appId];
+    await this._savePositions();
+  }
+
   // ─── Icon management ───────────────────────────────────────────────────────
 
   _getSavedOrNextCell(key) {
@@ -140,14 +203,14 @@ export class Desktop {
     return { col, row };
   }
 
-  addIcon({ label, icon, fspath, appId, beep }) {
+  addIcon({ label, icon, fspath, appId, beep, shortcut = false }) {
     const key = fspath || appId || label;
     if (this._icons.has(key)) return;
     const { col, row } = this._getSavedOrNextCell(key);
-    return this._addIconEl({ label, icon, fspath, appId, beep, col, row });
+    return this._addIconEl({ label, icon, fspath, appId, beep, shortcut, col, row });
   }
 
-  _addIconEl({ label, icon, fspath, appId, beep, col, row }) {
+  _addIconEl({ label, icon, fspath, appId, beep, shortcut = false, col, row }) {
     const key = fspath || appId || label;
     const { x, y } = this._cellToPixel(col, row);
 
@@ -169,7 +232,7 @@ export class Desktop {
         margin-top:4px;display:block;word-break:break-word;line-height:1.3">${label}</span>
     `;
 
-    const ic = { label, icon, fspath, appId, beep, el, gridX: col, gridY: row };
+    const ic = { label, icon, fspath, appId, beep, shortcut, el, gridX: col, gridY: row };
     el._ic = ic;
     this._icons.set(key, ic);
 
@@ -503,6 +566,13 @@ export class Desktop {
 
     if (isImage && ic.fspath) {
       items.push({ label: '🎨 Open in Paint', action: () => this._wm.openSystemApp('paint') });
+    }
+
+    if (ic.shortcut && ic.appId) {
+      items.push('sep');
+      items.push({ label: '✕ Remove desktop shortcut', action: () => this._removeAppShortcut(ic.appId) });
+      this._showMenu(x, y, items);
+      return;
     }
 
     items.push('sep');

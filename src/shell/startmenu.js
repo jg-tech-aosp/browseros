@@ -172,6 +172,7 @@ export class StartMenu {
           label = sys.title; icon = sys.icon || '🪟';
         }
         const tile = this._makeTile(label, icon, () => this._launchApp(appId));
+        this._bindAppContextMenu(tile, appId);
         grid.appendChild(tile);
       }
       this._body.appendChild(grid);
@@ -195,6 +196,7 @@ export class StartMenu {
         'App',
         () => this._launchApp(app.id)
       );
+      this._bindAppContextMenu(row, app.id);
       this._body.appendChild(row);
     }
 
@@ -302,6 +304,50 @@ export class StartMenu {
       try { await this._launcher.launchById(appId); }
       catch(e) { this._wm.notify('Failed to launch: ' + e.message); }
     }
+  }
+
+  _bindAppContextMenu(element, appId) {
+    element.addEventListener('contextmenu', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      this._showAppContextMenu(event.clientX, event.clientY, appId);
+    });
+  }
+
+  _showAppContextMenu(x, y, appId) {
+    document.getElementById('bos-startmenu-app-menu')?.remove();
+    const menu = document.createElement('div');
+    menu.id = 'bos-startmenu-app-menu';
+    menu.setAttribute('role', 'menu');
+    menu.style.cssText = `
+      position:fixed;left:${Math.max(4,Math.min(x,window.innerWidth-220))}px;
+      top:${Math.max(4,Math.min(y,window.innerHeight-48))}px;
+      min-width:210px;padding:4px;background:var(--wm-panel-bg);
+      border:1px solid var(--wm-panel-border);border-radius:8px;
+      box-shadow:0 8px 28px rgba(0,0,0,.45);z-index:9500;
+    `;
+    const action = document.createElement('button');
+    action.type = 'button';
+    action.setAttribute('role', 'menuitem');
+    action.textContent = 'Create desktop shortcut';
+    action.style.cssText = 'width:100%;padding:9px 11px;border:0;border-radius:5px;background:transparent;color:var(--wm-text);text-align:left;font:13px var(--wm-font);cursor:pointer';
+    action.onmouseenter = () => action.style.background = 'var(--wm-control-hover)';
+    action.onmouseleave = () => action.style.background = '';
+    action.onclick = event => {
+      event.stopPropagation();
+      document.dispatchEvent(new CustomEvent('bos:createDesktopShortcut', { detail: { appId } }));
+      menu.remove();
+      this.close();
+    };
+    menu.appendChild(action);
+    document.body.appendChild(menu);
+    const close = event => {
+      if (!menu.contains(event.target)) {
+        menu.remove();
+        document.removeEventListener('click', close);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', close), 0);
   }
 
   // ─── UI helpers ────────────────────────────────────────────────────────────
