@@ -27,7 +27,7 @@ const WM_STYLES = `
     --wm-control-border: rgba(255,255,255,0.12);
     --wm-control-hover: rgba(255,255,255,0.14);
     --wm-separator:    rgba(255,255,255,0.1);
-    --wm-backdrop-filter: var(--wm-backdrop-filter);
+    --wm-backdrop-filter: blur(20px);
     --wm-shadow:       0 8px 32px rgba(0,0,0,0.5);
     --wm-radius:       8px;
     --wm-taskbar-h:    48px;
@@ -151,7 +151,7 @@ const WM_STYLES = `
     bottom: 0; left: 0; right: 0;
     height: var(--wm-taskbar-h);
     background: var(--wm-taskbar-bg);
-    backdrop-filter: blur(20px);
+    backdrop-filter: var(--wm-backdrop-filter);
     border-top: 1px solid var(--wm-panel-border);
     display: flex;
     align-items: center;
