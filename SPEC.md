@@ -931,7 +931,7 @@ The current project is a hybrid of the original v2 architecture and features add
 
 | Version | Description |
 |---|---|
-| 2.0.0 | Initial BrowserOS v2 architecture and implementation |
+| 2.1.0 | BrowserOS 2.1 release, including desktop app shortcuts and release apps |\n| 2.0.0 | Initial BrowserOS v2 architecture and implementation |
 | 2.x development | Expanded native shell, application system, App Store, drag/drop and other desktop features |
 
 ---
