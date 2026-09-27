@@ -356,6 +356,13 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
         const ext = name.split('.').pop().toLowerCase();
         if (name.endsWith('.beep')) {
           await launcher.launch(path);
+        } else if (ext === 'writer') {
+          if (!await db.apps.get('writer')) {
+            wm.notify('Install Writer from the App Store to open this document');
+            return;
+          }
+          try { await launcher.launchById('writer', { file: path }); }
+          catch (error) { wm.notify('Could not open Writer: ' + error.message); }
         } else if (['txt','md','js','json','html','css'].includes(ext)) {
           wm.openSystemApp('texteditor', { file: path });
         } else if (['mp3','wav','ogg'].includes(ext)) {
@@ -377,7 +384,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
             else openFile(fullPath(item.name), item.name);
           }},
         ];
-        if (isImage) {
+        if (isImage && item.type === 'file') {
           items.push({ label: '🎨 Open in Paint', action: () => wm.openSystemApp('paint', { file: fullPath(item.name) }) });
         }
         items.push('sep');
