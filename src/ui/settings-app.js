@@ -387,6 +387,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
         uninstallBtn.style.cssText = 'background:rgba(200,50,50,0.15);border:1px solid rgba(200,50,50,0.3);color:#ff8888;border-radius:4px;padding:5px 10px;cursor:pointer;font-size:12px';
         uninstallBtn.onclick = async function() {
           if (!confirm('Uninstall ' + app.name + '?')) return;
+          if (app.storageId) await db.appData.clear(app.storageId);
           await db.apps.delete(app.id);
           el.remove();
           wm.onAppUninstalled(app.id);
