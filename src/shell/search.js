@@ -261,7 +261,14 @@ export class Search {
         break;
       case 'file': {
         const ext = result.path.split('.').pop().toLowerCase();
-        if (ext === 'writer') {
+        if (ext === 'stage') {
+          const app = await this._db.apps.get('stage');
+          if (!app) this._wm.notify('Install Stage from the App Store to open this presentation');
+          else {
+            try { await this._launcher.launchById('stage', { file: result.path }); }
+            catch (error) { this._wm.notify('Could not open Stage: ' + error.message); }
+          }
+        } else if (ext === 'writer') {
           const app = await this._db.apps.get('writer');
           if (!app) this._wm.notify('Install Writer from the App Store to open this document');
           else {
@@ -281,7 +288,7 @@ export class Search {
 
   _fileIcon(path) {
     const ext = path.split('.').pop().toLowerCase();
-    const map = { txt:'📄',md:'📄',js:'📜',html:'🌐',css:'🎨',json:'📋',png:'🖼️',jpg:'🖼️',mp3:'🎵',pdf:'📕' };
+    const map = { txt:'📄',md:'📄',js:'📜',html:'🌐',css:'🎨',json:'📋',stage:'🎭',png:'🖼️',jpg:'🖼️',mp3:'🎵',pdf:'📕' };
     return map[ext] || '📄';
   }
 }

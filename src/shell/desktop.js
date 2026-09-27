@@ -237,7 +237,7 @@ export class Desktop {
     const ext = name.split('.').pop().toLowerCase();
     const map = {
       txt:'📄', md:'📄', js:'📜', html:'🌐', css:'🎨',
-      json:'📋', writer:'📝', png:'🖼️', jpg:'🖼️', mp3:'🎵', pdf:'📕',
+      json:'📋', writer:'📝', stage:'🎭', png:'🖼️', jpg:'🖼️', mp3:'🎵', pdf:'📕',
     };
     return map[ext] || '📄';
   }

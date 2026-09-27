@@ -274,7 +274,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
           let done = 0;
           files.forEach(file => {
             const reader = new FileReader();
-            const isText = file.type.startsWith('text/') || /\.(txt|md|js|json|html|css|csv|xml|svg|beep|writer)$/i.test(file.name);
+            const isText = file.type.startsWith('text/') || /\.(txt|md|js|json|html|css|csv|xml|svg|beep|writer|stage)$/i.test(file.name);
             reader.onload = async e2 => {
               await createFile(fullPath(file.name), e2.target.result);
               done++;
@@ -356,6 +356,13 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
         const ext = name.split('.').pop().toLowerCase();
         if (name.endsWith('.beep')) {
           await launcher.launch(path);
+        } else if (ext === 'stage') {
+          if (!await db.apps.get('stage')) {
+            wm.notify('Install Stage from the App Store to open this presentation');
+            return;
+          }
+          try { await launcher.launchById('stage', { file: path }); }
+          catch (error) { wm.notify('Could not open Stage: ' + error.message); }
         } else if (ext === 'writer') {
           if (!await db.apps.get('writer')) {
             wm.notify('Install Writer from the App Store to open this document');
