@@ -230,7 +230,7 @@ export class Taskbar {
     panel.style.cssText = `
       position:fixed;bottom:calc(var(--wm-taskbar-h) + 8px);right:8px;
       width:320px;max-height:400px;
-      background:var(--wm-panel-bg);backdrop-filter:blur(20px);
+      background:var(--wm-panel-bg);backdrop-filter:var(--wm-backdrop-filter,blur(20px));
       border:1px solid var(--wm-panel-border);border-radius:12px;
       box-shadow:0 8px 32px rgba(0,0,0,0.5);
       z-index:9100;display:flex;flex-direction:column;overflow:hidden;
