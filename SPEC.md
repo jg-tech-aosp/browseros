@@ -776,6 +776,8 @@ The App Store is therefore an application distribution interface on top of the .
 
 The repository's current runtime has a functioning App Store, while the exact catalogue can change independently of the operating-system core.
 
+The App Store compares each catalog version with the version saved from the installed package manifest. A newer catalog version is shown as an available update. Before replacing an install, the Store checks that the downloaded package's manifest version matches its catalog entry. App updates keep the existing private app data only when both installed and updated versions have the already-granted `app.storage` permission; manual reinstalls start with fresh app data.
+
 ---
 
 # 13. Drag and Drop
