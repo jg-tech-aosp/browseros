@@ -200,9 +200,15 @@ export function registerAppStore({ wm, fs, db, launcher }) {
           document.dispatchEvent(new CustomEvent('bos:appInstalled', { detail: { appId: app.id } }));
 
         } catch(e) {
-          delete installing[app.id];
-          btn.textContent = 'Failed — retry';
-          btn.style.background = 'rgba(200,50,50,0.3)';
+          if (wasInstalled) {
+            installing[app.id] = 'done';
+            btn.textContent = '✓ Installed';
+            btn.style.background = 'rgba(16,124,16,0.3)';
+          } else {
+            delete installing[app.id];
+            btn.textContent = 'Failed — retry';
+            btn.style.background = 'rgba(200,50,50,0.3)';
+          }
           btn.disabled = false;
           btn.onclick = () => installApp(app, btn);
           wm.notify('Install failed: ' + e.message);
