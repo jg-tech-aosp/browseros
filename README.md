@@ -17,7 +17,7 @@
 
 ## Get started
 
-1. Open [BrowserOS](https://jg-tech-aosp.github.io/browseros2/) in a modern browser.
+1. Open [BrowserOS](https://jg-tech-aosp.github.io/browseros/) in a modern browser.
 2. Click the BrowserOS logo on the taskbar to open Start, or press **Ctrl + Space** to search apps, recent files, and settings.
 3. Open **File Manager** and use **Import** to copy files from your computer into the BrowserOS filesystem.
 4. Open **Settings** to change the theme or choose a wallpaper from Pictures.
