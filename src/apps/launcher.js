@@ -314,8 +314,8 @@ export class Launcher {
     if (app.permissionDecisionVersion !== 1 || !app.storageId) {
       // Older installs never received a consent prompt for app.storage. Strip
       // that newly introduced capability until the user reinstalls and approves it.
+      app.requestedPermissions ||= [...(app.permissions || [])];
       app.permissions = (app.permissions || []).filter(permission => permission !== 'app.storage');
-      app.requestedPermissions ||= app.permissions;
       app.storageId ||= createStorageId();
       app.permissionDecisionVersion = 1;
       await this._db.apps.put(app);
