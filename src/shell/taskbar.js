@@ -156,7 +156,7 @@ export class Taskbar {
     // Notification bell
     this._bellBtn = document.createElement('button');
     this._bellBtn.style.cssText = `
-      background:transparent;border:none;color:#e0e0ff;cursor:pointer;
+      background:transparent;border:none;color:var(--wm-text);cursor:pointer;
       font-size:16px;position:relative;width:32px;height:32px;
       display:flex;align-items:center;justify-content:center;
       border-radius:6px;transition:background 0.15s;
@@ -180,7 +180,7 @@ export class Taskbar {
     // Quick settings button
     const qsBtn = document.createElement('button');
     qsBtn.style.cssText = `
-      background:transparent;border:none;color:#e0e0ff;cursor:pointer;
+      background:transparent;border:none;color:var(--wm-text);cursor:pointer;
       font-size:16px;width:32px;height:32px;
       display:flex;align-items:center;justify-content:center;
       border-radius:6px;transition:background 0.15s;
@@ -230,8 +230,8 @@ export class Taskbar {
     panel.style.cssText = `
       position:fixed;bottom:calc(var(--wm-taskbar-h) + 8px);right:8px;
       width:320px;max-height:400px;
-      background:rgba(20,20,40,0.97);backdrop-filter:blur(20px);
-      border:1px solid rgba(255,255,255,0.12);border-radius:12px;
+      background:var(--wm-panel-bg);backdrop-filter:blur(20px);
+      border:1px solid var(--wm-panel-border);border-radius:12px;
       box-shadow:0 8px 32px rgba(0,0,0,0.5);
       z-index:9100;display:flex;flex-direction:column;overflow:hidden;
     `;
@@ -252,9 +252,9 @@ export class Taskbar {
   _renderNotifPanel(panel) {
     panel.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;
-        padding:12px 14px;border-bottom:1px solid rgba(255,255,255,0.08)">
+        padding:12px 14px;border-bottom:1px solid var(--wm-separator)">
         <span style="font-weight:bold;font-size:14px">Notifications</span>
-        <button id="bos-notif-clear" style="background:none;border:none;color:#8888aa;
+        <button id="bos-notif-clear" style="background:none;border:none;color:var(--wm-text-dim);
           cursor:pointer;font-size:12px">Clear all</button>
       </div>
       <div id="bos-notif-list" style="overflow-y:auto;flex:1;padding:8px"></div>
@@ -262,18 +262,18 @@ export class Taskbar {
 
     const list = panel.querySelector('#bos-notif-list');
     if (this._notifications.length === 0) {
-      list.innerHTML = '<div style="padding:16px;color:#8888aa;font-size:13px;text-align:center">No notifications</div>';
+      list.innerHTML = '<div style="padding:16px;color:var(--wm-text-dim);font-size:13px;text-align:center">No notifications</div>';
     } else {
       this._notifications.forEach(n => {
         const el = document.createElement('div');
         el.style.cssText = `
           padding:10px 12px;border-radius:6px;font-size:13px;
-          border-bottom:1px solid rgba(255,255,255,0.05);
+          border-bottom:1px solid var(--wm-separator);
           display:flex;justify-content:space-between;gap:12px;
         `;
         el.innerHTML = `
           <span>${n.message}</span>
-          <span style="color:#8888aa;font-size:11px;flex-shrink:0">
+          <span style="color:var(--wm-text-dim);font-size:11px;flex-shrink:0">
             ${new Date(n.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}
           </span>
         `;
@@ -297,8 +297,8 @@ export class Taskbar {
     panel.id = 'bos-qs-panel';
     panel.style.cssText = `
       position:fixed;bottom:calc(var(--wm-taskbar-h) + 8px);right:8px;
-      width:300px;background:rgba(20,20,40,0.97);backdrop-filter:blur(20px);
-      border:1px solid rgba(255,255,255,0.12);border-radius:12px;
+      width:300px;background:var(--wm-panel-bg);backdrop-filter:blur(20px);
+      border:1px solid var(--wm-panel-border);border-radius:12px;
       box-shadow:0 8px 32px rgba(0,0,0,0.5);z-index:9100;padding:16px;
     `;
 
@@ -328,7 +328,7 @@ export class Taskbar {
         </div>
       </div>
 
-      <div style="font-size:12px;color:#8888aa;text-align:center;cursor:pointer" id="qs-open-settings">
+      <div style="font-size:12px;color:var(--wm-text-dim);text-align:center;cursor:pointer" id="qs-open-settings">
         Open full Settings →
       </div>
     `;
@@ -376,19 +376,19 @@ export class Taskbar {
     menu.style.cssText = `
       position:fixed;left:${Math.min(x, window.innerWidth - 200)}px;
       top:${Math.min(y, window.innerHeight - items.length * 36 - 60)}px;
-      background:rgba(20,20,40,0.97);backdrop-filter:blur(20px);
-      border:1px solid rgba(255,255,255,0.12);border-radius:8px;
+      background:var(--wm-panel-bg);backdrop-filter:blur(20px);
+      border:1px solid var(--wm-panel-border);border-radius:8px;
       padding:4px;z-index:99999;min-width:200px;
       box-shadow:0 8px 32px rgba(0,0,0,0.5);
     `;
     items.forEach(item => {
       if (item === 'sep') {
         const sep = document.createElement('div');
-        sep.style.cssText = 'height:1px;background:rgba(255,255,255,0.1);margin:4px 0';
+        sep.style.cssText = 'height:1px;background:var(--wm-control-hover);margin:4px 0';
         menu.appendChild(sep);
       } else {
         const el = document.createElement('div');
-        el.style.cssText = 'padding:7px 14px;border-radius:4px;font-size:13px;cursor:pointer;color:#e0e0ff';
+        el.style.cssText = 'padding:7px 14px;border-radius:4px;font-size:13px;cursor:pointer;color:var(--wm-text)';
         el.textContent = item.label;
         el.onmouseenter = () => el.style.background = 'rgba(255,255,255,0.1)';
         el.onmouseleave = () => el.style.background = '';
