@@ -33,7 +33,7 @@ export function registerSysMonitor({ wm, db, kernel, settings, fs }) {
       }
 
       const theme = settings.getTheme();
-      infoGrid.appendChild(stat('OS Version', 'BrowserOS 2.1.1'));
+      infoGrid.appendChild(stat('OS Version', 'BrowserOS 2.1.2'));
       infoGrid.appendChild(stat('BOS API', '2.0'));
       infoGrid.appendChild(stat('Screen', window.innerWidth + ' × ' + window.innerHeight));
       infoGrid.appendChild(stat('Locale', navigator.language || 'en-US'));
