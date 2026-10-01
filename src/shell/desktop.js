@@ -136,6 +136,10 @@ export class Desktop {
     }
   }
 
+  async refreshAppIcons() {
+    await this._addDefaultAppIcons();
+  }
+
   async _addAppShortcut(appId) {
     if (this._icons.has(appId)) {
       const existing = this._icons.get(appId);
