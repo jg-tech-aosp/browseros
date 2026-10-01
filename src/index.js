@@ -144,6 +144,7 @@ async function boot() {
     // ── 10. Seed inbox apps ───────────────────────────────────────────────────
     console.log('[bos] Seeding inbox apps...');
     await launcher.seedInboxApps(INBOX_APPS);
+    await desktop.refreshAppIcons();
     await taskbar.refreshPinnedApps();
 
     // ── 11. Theme change broadcast ────────────────────────────────────────────
