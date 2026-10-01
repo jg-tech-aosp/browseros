@@ -140,7 +140,7 @@
     // Synchronous — data is available from boot payload, no postMessage needed.
 
     os: {
-      version: () => _bootData?.version  ?? '2.1.1',
+      version: () => _bootData?.version  ?? '2.1.2',
       theme:   () => _bootData?.theme    ?? {},
       env:     () => _bootData?.env      ?? {},
       args:    () => _bootData?.args     ?? {},
