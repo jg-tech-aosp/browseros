@@ -11,21 +11,17 @@
  * Depends on: JSZip (loaded via CDN in index.html)
  */
 
-// Base URL for fetching app resources
-const BASE_URL = (() => {
-  // Derive from current page location — works for any repo name
-  const loc = window.location.href;
-  const idx = loc.indexOf('/browseros2/');
-  if (idx !== -1) return loc.substring(0, idx) + '/browseros/';
-  // Fallback: use origin (works for localhost)
-  return window.location.origin + '/';
-})();
+// Base URL for bundled app resources. Resolve relative to this module so
+// the OS works at the repository root, a GitHub Pages project path, or locally.
+const BASE_URL = new URL('../../', import.meta.url).href;
 let _bosClientSrc = null;
 
 async function getBosClientSrc() {
   if (_bosClientSrc) return _bosClientSrc;
   const res = await fetch(`${BASE_URL}src/bos/client.js`);
+  if (!res.ok) throw new Error(`Failed to load BrowserOS app API (HTTP ${res.status})`);
   _bosClientSrc = await res.text();
+  if (!_bosClientSrc.trim()) throw new Error('BrowserOS app API is empty');
   return _bosClientSrc;
 }
 
