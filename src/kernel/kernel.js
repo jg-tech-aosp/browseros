@@ -295,7 +295,7 @@ export class Kernel {
       // ── OS info ─────────────────────────────────────────────────────────────
 
       case 'os.version': {
-        return '2.1.1';
+        return '2.1.2';
       }
 
       case 'os.theme': {
