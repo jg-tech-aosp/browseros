@@ -39,6 +39,7 @@ export function registerImageViewer({ wm, fs }) {
     icon: '🖼️',
     width: 760,
     height: 560,
+    fileTypes: ['.apng', '.avif', '.bmp', '.gif', '.ico', '.jfif', '.jpeg', '.jpg', '.png', '.svg', '.webp'],
 
     mount(container, instanceId, args = {}) {
       container.style.cssText = 'display:flex;flex-direction:column;height:100%;overflow:hidden;background:var(--wm-bg);color:var(--wm-text)';
