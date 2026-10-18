@@ -582,6 +582,12 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
       })
     ));
 
+    main.appendChild(row('Ice Mode', 'Windows keep sliding after you release them and bounce off the desktop edges. Reduced Motion disables the effect.',
+      toggle(settings.get('iceMode') === true, async function(value) {
+        await settings.set('iceMode', value);
+      })
+    ));
+
     main.appendChild(h2('Recent console logs'));
     var logToolbar = document.createElement('div');
     logToolbar.style.cssText = 'display:flex;gap:8px;margin-bottom:8px';
