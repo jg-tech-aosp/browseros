@@ -10,6 +10,7 @@ export function registerMusicPlayer({ wm, fs }) {
     icon:   '🎵',
     width:  380,
     height: 480,
+    fileTypes: ['.mp3', '.wav', '.ogg'],
     mount(container, instanceId, args) {
       let audio    = new Audio();
       let playlist = [];
