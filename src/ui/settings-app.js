@@ -498,23 +498,12 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     resetBtn.type = 'button';
     resetBtn.textContent = '🗑️ Reset Filesystem';
     resetBtn.style.cssText = 'background:rgba(200,50,50,0.15);border:1px solid rgba(200,50,50,0.3);color:#ff8888;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px;margin-top:16px';
-    resetBtn.onclick = async function() {
-      if (!confirm('Delete files and folders from the virtual filesystem? Installed .beep apps in /Apps and your settings will remain. This cannot be undone.')) return;
-      try {
-        var rootEntries = await db.fs.list('/');
-        for (var entry of rootEntries) {
-          if (entry.path === '/Apps') continue;
-          await db.fs.deleteAll(entry.path);
-          await db.fs.delete(entry.path);
-        }
-        for (var folder of ['/Desktop', '/Documents', '/Pictures', '/Music', '/Downloads']) {
-          if (!(await db.fs.get(folder))) await fs.mkdir(folder);
-        }
-        location.reload();
-      } catch (error) {
-        console.error('[settings] Filesystem reset failed:', error);
-        alert('Could not reset the filesystem. Check the Developer / Debug console logs for details.');
-      }
+    resetBtn.onclick = function() {
+      if (!confirm('Factory reset BrowserOS? This permanently deletes your local profile, files, installed apps, app data, and settings. BrowserOS will restart with first-run setup.')) return;
+      var request = indexedDB.deleteDatabase('BrowserOS3Dev');
+      request.onsuccess = function() { location.reload(); };
+      request.onerror = function() { alert('BrowserOS could not reset its data. Check whether another BrowserOS tab is open.'); };
+      request.onblocked = function() { alert('Close other BrowserOS tabs, then try the factory reset again.'); };
     };
     main.appendChild(resetBtn);
   }
@@ -644,17 +633,5 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     };
     main.appendChild(resetSettingsBtn);
 
-    var resetDataBtn = document.createElement('button');
-    resetDataBtn.type = 'button';
-    resetDataBtn.textContent = 'Reset all BrowserOS data';
-    resetDataBtn.style.cssText = 'background:rgba(200,50,50,0.15);border:1px solid rgba(200,50,50,0.3);color:#ff8888;border-radius:6px;padding:8px 12px;cursor:pointer;font-size:13px;margin:0 0 10px';
-    resetDataBtn.onclick = function() {
-      if (!confirm('Delete all BrowserOS data in this browser? This removes files, installed .beep apps, app data, and settings. This cannot be undone.')) return;
-      var request = indexedDB.deleteDatabase('BrowserOS3Dev');
-      request.onsuccess = function() { location.reload(); };
-      request.onerror = function() { alert('BrowserOS could not reset its data. Check whether another BrowserOS tab is open.'); };
-      request.onblocked = function() { alert('Close other BrowserOS tabs, then try the reset again.'); };
-    };
-    main.appendChild(resetDataBtn);
   }
 }
