@@ -18,6 +18,7 @@ const DEFAULTS = {
   reduceMotion: false,
   debugLayoutOutlines: false,
   iceMode: false,
+  fileAssociations: {},
   pinnedApps: ['filemanager', 'texteditor', 'terminal', 'calculator', 'browser', 'paint', 'appstore', 'musicplayer', 'markdownviewer', 'sysmonitor'],
   userProfile: { name: 'User', avatar: null },
 };
