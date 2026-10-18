@@ -28,7 +28,7 @@ export class StartMenu {
     });
     // Ctrl+Space still works as alias
     document.addEventListener('keydown', e => {
-      if (e.ctrlKey && e.code === 'Space') { e.preventDefault(); this.toggle(); }
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey && e.code === 'Space') { e.preventDefault(); this.toggle(); }
       if (e.key === 'Escape' && this._open) this.close();
     });
     console.log('[startmenu] Booted');
