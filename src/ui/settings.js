@@ -17,6 +17,7 @@ const DEFAULTS = {
   interfaceScale: 100,
   reduceMotion: false,
   debugLayoutOutlines: false,
+  iceMode: false,
   pinnedApps: ['filemanager', 'texteditor', 'terminal', 'calculator', 'browser', 'paint', 'appstore', 'musicplayer', 'markdownviewer', 'sysmonitor'],
   userProfile: { name: 'User', avatar: null },
 };
