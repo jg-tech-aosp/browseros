@@ -220,7 +220,7 @@ async function boot() {
     registerAppStore({ wm, fs, db, launcher });
     registerMusicPlayer({ wm, fs });
     registerTextEditor({ wm, fs });
-    registerTerminal({ wm, fs, launcher, kernel, settings });
+    registerTerminal({ wm, fs, launcher, kernel, settings, db });
     registerSysMonitor({ wm, db, kernel, settings, fs });
     registerPaint({ wm, fs });
     registerImageViewer({ wm, fs });
