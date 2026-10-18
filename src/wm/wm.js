@@ -68,6 +68,7 @@ const WM_STYLES = `
     transition: box-shadow 0.15s, top 0.24s cubic-bezier(.2,.75,.25,1), left 0.24s cubic-bezier(.2,.75,.25,1), width 0.24s cubic-bezier(.2,.75,.25,1), height 0.24s cubic-bezier(.2,.75,.25,1), border-radius 0.24s ease;
     user-select: none;
   }
+  .wm-window.wm-window-dragging, .wm-window.wm-window-ice-sliding { transition: none !important; }
   .wm-window.wm-window-opening { animation: wm-window-open 0.22s cubic-bezier(.2,.75,.25,1) both; }
   .wm-window.wm-window-minimizing { animation: wm-window-minimize 0.18s ease-in both; pointer-events:none; }
   .wm-window.wm-window-restoring { animation: wm-window-restore 0.2s cubic-bezier(.2,.75,.25,1) both; }
@@ -767,23 +768,105 @@ export class WindowManager {
   // ─── Drag & resize ─────────────────────────────────────────────────────────
 
   _makeDraggable(win, handle, instanceId) {
+    let slideFrame = null;
+    const stopSlide = () => {
+      if (slideFrame !== null) cancelAnimationFrame(slideFrame);
+      slideFrame = null;
+      win.classList.remove('wm-window-ice-sliding');
+    };
+
+    const startSlide = (velocityX, velocityY) => {
+      const desktop = document.getElementById('wm-desktop');
+      if (!desktop) return;
+      const maxX = Math.max(0, desktop.clientWidth - win.offsetWidth);
+      const maxY = Math.max(0, desktop.clientHeight - win.offsetHeight);
+      let left = Math.max(0, Math.min(maxX, parseFloat(win.style.left) || 0));
+      let top = Math.max(0, Math.min(maxY, parseFloat(win.style.top) || 0));
+      let vx = Math.max(-1.4, Math.min(1.4, velocityX));
+      let vy = Math.max(-1.4, Math.min(1.4, velocityY));
+      let previousTime = 0;
+      const bounce = 0.72;
+
+      if (Math.hypot(vx, vy) < 0.035) return;
+      win.classList.add('wm-window-ice-sliding');
+
+      const frame = time => {
+        if (!win.isConnected || win.classList.contains('minimized') ||
+            win.classList.contains('maximized') ||
+            this._settings?.get('iceMode') !== true ||
+            this._settings?.get('reduceMotion') === true) {
+          stopSlide();
+          return;
+        }
+        const dt = Math.min(32, previousTime ? time - previousTime : 16);
+        previousTime = time;
+        left += vx * dt;
+        top += vy * dt;
+
+        if (left < 0) { left = 0; vx = Math.abs(vx) * bounce; }
+        else if (left > maxX) { left = maxX; vx = -Math.abs(vx) * bounce; }
+        if (top < 0) { top = 0; vy = Math.abs(vy) * bounce; }
+        else if (top > maxY) { top = maxY; vy = -Math.abs(vy) * bounce; }
+
+        const friction = Math.exp(-0.0022 * dt);
+        vx *= friction;
+        vy *= friction;
+        win.style.left = left + 'px';
+        win.style.top = top + 'px';
+
+        if (Math.hypot(vx, vy) < 0.018) {
+          stopSlide();
+          return;
+        }
+        slideFrame = requestAnimationFrame(frame);
+      };
+      slideFrame = requestAnimationFrame(frame);
+    };
+
     handle.addEventListener('mousedown', e => {
       if (e.target.closest('.wm-titlebar-btns')) return;
       const w = this._windows.get(instanceId);
       if (w?.state.maximized) return;
+      stopSlide();
+      win.classList.add('wm-window-dragging');
       const sx = e.clientX, sy = e.clientY;
       const sl = parseInt(win.style.left) || 0;
       const st = parseInt(win.style.top)  || 0;
+      const desktop = document.getElementById('wm-desktop');
+      const iceMode = this._settings?.get('iceMode') === true &&
+        this._settings?.get('reduceMotion') !== true;
+      const maxX = Math.max(0, (desktop?.clientWidth || window.innerWidth) - win.offsetWidth);
+      const maxY = Math.max(0, (desktop?.clientHeight || window.innerHeight) - win.offsetHeight);
+      let lastX = sx, lastY = sy, lastTime = performance.now();
+      let velocityX = 0, velocityY = 0;
+
       const onMove = e2 => {
-        win.style.left = Math.max(0, sl + e2.clientX - sx) + 'px';
-        win.style.top  = Math.max(0, st + e2.clientY - sy) + 'px';
+        const now = performance.now();
+        const sampleTime = Math.max(1, now - lastTime);
+        const sampleX = (e2.clientX - lastX) / sampleTime;
+        const sampleY = (e2.clientY - lastY) / sampleTime;
+        velocityX = velocityX * 0.35 + sampleX * 0.65;
+        velocityY = velocityY * 0.35 + sampleY * 0.65;
+        lastX = e2.clientX;
+        lastY = e2.clientY;
+        lastTime = now;
+
+        const nextLeft = sl + e2.clientX - sx;
+        const nextTop = st + e2.clientY - sy;
+        win.style.left = (iceMode ? Math.max(0, Math.min(maxX, nextLeft)) : Math.max(0, nextLeft)) + 'px';
+        win.style.top = (iceMode ? Math.max(0, Math.min(maxY, nextTop)) : Math.max(0, nextTop)) + 'px';
       };
       const onUp = () => {
         document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup',   onUp);
+        document.removeEventListener('mouseup', onUp);
+        win.classList.remove('wm-window-dragging');
+        if (iceMode && this._settings?.get('iceMode') === true &&
+            this._settings?.get('reduceMotion') !== true) {
+          startSlide(velocityX * 1.15, velocityY * 1.15);
+        }
       };
       document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup',   onUp);
+      document.addEventListener('mouseup', onUp);
       e.preventDefault();
     });
   }
