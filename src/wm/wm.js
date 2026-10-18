@@ -828,14 +828,14 @@ export class WindowManager {
       const w = this._windows.get(instanceId);
       if (w?.state.maximized) return;
       stopSlide();
+      const desktop = document.getElementById('wm-desktop');
+      const iceMode = this._settings?.get('iceMode') === true &&
+        this._settings?.get('reduceMotion') !== true;
       win.classList.add('wm-window-dragging');
       if (iceMode) win.classList.add('wm-window-ice-dragging');
       const sx = e.clientX, sy = e.clientY;
       const sl = parseInt(win.style.left) || 0;
       const st = parseInt(win.style.top)  || 0;
-      const desktop = document.getElementById('wm-desktop');
-      const iceMode = this._settings?.get('iceMode') === true &&
-        this._settings?.get('reduceMotion') !== true;
       const maxX = Math.max(0, (desktop?.clientWidth || window.innerWidth) - win.offsetWidth);
       const maxY = Math.max(0, (desktop?.clientHeight || window.innerHeight) - win.offsetHeight);
       let lastX = sx, lastY = sy, lastTime = performance.now();
