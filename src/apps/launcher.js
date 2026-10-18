@@ -138,6 +138,17 @@ function buildSrcdoc(bosClientSrc, appMainSrc, manifest) {
 </head>
 <body>
 <script>
+// Browser-level window switching must cross the sandbox boundary explicitly.
+// Forward only the fixed chord; the parent validates this iframe's ownership.
+window.addEventListener('keydown', event => {
+  const editable = event.target?.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="textbox"]');
+  if (editable || !event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey || event.code !== 'Space') return;
+  event.preventDefault();
+  event.stopPropagation();
+  window.parent.postMessage({ type: 'bos:appSwitcher' }, '*');
+}, true);
+</script>
+<script>
 // ── BOS Client Library ──────────────────────────────────────────────────
 ${bosClientSrc}
 </script>
