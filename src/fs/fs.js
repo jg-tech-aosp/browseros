@@ -317,6 +317,7 @@ export class FileSystem {
     if (!node) return { ok: false, error: `${path} does not exist` };
 
     let bin = await this._db.fs.get('/.RecycleBin');
+    if (bin && bin.type !== 'dir') return { ok: false, error: 'Recycle Bin storage is unavailable' };
     if (!bin) {
       bin = makeDir('/.RecycleBin');
       await this._db.fs.put(bin);
@@ -361,6 +362,13 @@ export class FileSystem {
 
     const info = node.trashInfo;
     const originalPath = info.originalPath;
+    const originalName = info.originalName;
+    if (typeof originalPath !== 'string' || !originalPath.startsWith('/') ||
+        originalPath.split('/').includes('..') || originalPath === '/' ||
+        originalPath === '/.RecycleBin' || originalPath.startsWith('/.RecycleBin/') ||
+        typeof originalName !== 'string' || !originalName || originalName.includes('/') || originalName.includes('\\')) {
+      return { ok: false, error: 'Recycle Bin item has invalid restore information' };
+    }
     let parent = parentPath(originalPath);
     if (!parent || parent === '/.RecycleBin' || parent.startsWith('/.RecycleBin/')) parent = '/';
     const parts = parent.split('/').filter(Boolean);
@@ -372,7 +380,6 @@ export class FileSystem {
       else if (existingDir.type !== 'dir') return { ok: false, error: 'Restore location is blocked by a file: ' + current };
     }
 
-    const originalName = info.originalName || fileName(originalPath);
     let destination = (parent === '/' ? '' : parent) + '/' + originalName;
     const splitName = originalName.lastIndexOf('.');
     const stem = splitName > 0 ? originalName.slice(0, splitName) : originalName;
