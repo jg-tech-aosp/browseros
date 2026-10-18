@@ -194,7 +194,8 @@ export class FileSystem {
     const node = await this._db.fs.get(normPath(path));
     if (!node || node.type !== 'dir') return null;
     const children = await this._db.fs.list(normPath(path));
-    return children.map(n => ({
+    // The recycle area is implementation storage, not a user-visible folder.
+    return children.filter(n => !(normPath(path) === '/' && n.path === '/.RecycleBin')).map(n => ({
       type:     n.type,
       size:     n.size,
       name:     fileName(n.path),
@@ -299,25 +300,112 @@ export class FileSystem {
   }
 
   /**
-   * Delete a file or empty directory.
-   * Returns error if directory is not empty.
-   * @returns {Promise<{ok:boolean, error?:string}>}
+   * Move a file or folder into the recycle bin.
+   * @returns {Promise<{ok:boolean, error?:string, id?:string}>}
    */
   async rm(path) {
+    return this.trash(path);
+  }
+
+  async trash(path) {
     path = normPath(path);
+    if (path === '/' || path === '/.RecycleBin' || path.startsWith('/.RecycleBin/')) {
+      return { ok: false, error: 'This location cannot be moved to the recycle bin' };
+    }
     const node = await this._db.fs.get(path);
     if (!node) return { ok: false, error: `${path} does not exist` };
 
-    if (node.type === 'dir') {
-      const children = await this._db.fs.list(path);
-      if (children.length > 0) {
-        return { ok: false, error: `Directory not empty: ${path}. Delete contents first.` };
-      }
+    let bin = await this._db.fs.get('/.RecycleBin');
+    if (!bin) {
+      bin = makeDir('/.RecycleBin');
+      await this._db.fs.put(bin);
     }
 
-    await this._db.fs.delete(path);
+    const id = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    const destination = '/.RecycleBin/' + id;
+    const info = {
+      originalPath: path,
+      originalName: fileName(path),
+      originalType: node.type,
+      deletedAt: now(),
+    };
+    const all = node.type === 'dir' ? [node, ...await this._db.fs.listAll(path)] : [node];
+
+    for (const entry of all) {
+      const nextPath = destination + entry.path.slice(path.length);
+      const moved = { ...entry, path: nextPath, modified: now() };
+      if (entry.path === path) moved.trashInfo = info;
+      await this._db.fs.put(moved);
+    }
+    for (const entry of all) await this._db.fs.delete(entry.path);
+
     const parent = parentPath(path);
     if (parent) await this._touchDir(parent);
+    return { ok: true, id };
+  }
+
+  async listTrash() {
+    const entries = await this._db.fs.list('/.RecycleBin');
+    return entries
+      .filter(entry => entry.trashInfo && entry.path !== '/.RecycleBin')
+      .map(entry => ({ id: entry.path.split('/').pop(), ...entry.trashInfo }))
+      .sort((a, b) => b.deletedAt - a.deletedAt);
+  }
+
+  async restoreTrash(id) {
+    if (typeof id !== 'string' || !/^[a-z0-9-]+$/i.test(id)) return { ok: false, error: 'Invalid recycle bin item' };
+    const storedPath = '/.RecycleBin/' + id;
+    const node = await this._db.fs.get(storedPath);
+    if (!node || !node.trashInfo) return { ok: false, error: 'Recycle bin item not found' };
+
+    const info = node.trashInfo;
+    const originalPath = info.originalPath;
+    let parent = parentPath(originalPath);
+    if (!parent || parent === '/.RecycleBin' || parent.startsWith('/.RecycleBin/')) parent = '/';
+    const parts = parent.split('/').filter(Boolean);
+    let current = '';
+    for (const part of parts) {
+      current += '/' + part;
+      const existingDir = await this._db.fs.get(current);
+      if (!existingDir) await this._db.fs.put(makeDir(current));
+      else if (existingDir.type !== 'dir') return { ok: false, error: 'Restore location is blocked by a file: ' + current };
+    }
+
+    const originalName = info.originalName || fileName(originalPath);
+    let destination = (parent === '/' ? '' : parent) + '/' + originalName;
+    const splitName = originalName.lastIndexOf('.');
+    const stem = splitName > 0 ? originalName.slice(0, splitName) : originalName;
+    const extension = splitName > 0 ? originalName.slice(splitName) : '';
+    let suffix = 1;
+    while (await this._db.fs.get(destination)) {
+      destination = (parent === '/' ? '' : parent) + '/' + stem + '(' + suffix++ + ')' + extension;
+    }
+
+    const all = node.type === 'dir' ? [node, ...await this._db.fs.listAll(storedPath)] : [node];
+    for (const entry of all) {
+      const restoredPath = destination + entry.path.slice(storedPath.length);
+      const restored = { ...entry, path: restoredPath, modified: now() };
+      delete restored.trashInfo;
+      await this._db.fs.put(restored);
+    }
+    for (const entry of all) await this._db.fs.delete(entry.path);
+    await this._touchDir(parent);
+    return { ok: true, path: destination };
+  }
+
+  async permanentlyDeleteTrash(id) {
+    if (typeof id !== 'string' || !/^[a-z0-9-]+$/i.test(id)) return { ok: false, error: 'Invalid recycle bin item' };
+    const path = '/.RecycleBin/' + id;
+    const node = await this._db.fs.get(path);
+    if (!node || !node.trashInfo) return { ok: false, error: 'Recycle bin item not found' };
+    const all = node.type === 'dir' ? [node, ...await this._db.fs.listAll(path)] : [node];
+    for (const entry of all) await this._db.fs.delete(entry.path);
+    return { ok: true };
+  }
+
+  async emptyTrash() {
+    const entries = await this.listTrash();
+    for (const entry of entries) await this.permanentlyDeleteTrash(entry.id);
     return { ok: true };
   }
 
@@ -346,6 +434,10 @@ export class FileSystem {
     dest = normPath(dest);
 
     if (src === dest) return { ok: true };
+    if (src === '/.RecycleBin' || src.startsWith('/.RecycleBin/') ||
+        dest === '/.RecycleBin' || dest.startsWith('/.RecycleBin/')) {
+      return { ok: false, error: 'Recycle Bin storage cannot be moved directly' };
+    }
 
     const node = await this._db.fs.get(src);
     if (!node) return { ok: false, error: `${src} does not exist` };
