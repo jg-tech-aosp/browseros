@@ -616,6 +616,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
       await settings.reset();
       wm.applyTheme(settings.getTheme());
       kernel.broadcast('themeChanged', settings.getTheme());
+      main.innerHTML = '';
       renderDeveloper(main);
     };
     main.appendChild(resetSettingsBtn);
