@@ -403,8 +403,12 @@ export class WindowManager {
    * Register a native system app (non-.beep).
    * mount(container, instanceId) is called to render the app.
    */
-  registerSystemApp(appId, { title, icon, width, height, mount }) {
-    this._systemApps.set(appId, { title, icon, width, height, mount });
+  registerSystemApp(appId, { title, icon, width, height, mount, fileTypes = [] }) {
+    this._systemApps.set(appId, { title, icon, width, height, mount, fileTypes });
+  }
+
+  getSystemApps() {
+    return [...this._systemApps].map(([id, app]) => ({ id, ...app }));
   }
 
   openSystemApp(appId, args = {}) {
