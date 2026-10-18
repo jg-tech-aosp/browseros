@@ -494,6 +494,29 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     bar.innerHTML = '<div style="height:100%;background:var(--wm-accent);width:' + pct + '%;border-radius:4px;transition:width 0.3s"></div>';
     main.appendChild(bar);
 
+    var resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.textContent = '🗑️ Reset Filesystem';
+    resetBtn.style.cssText = 'background:rgba(200,50,50,0.15);border:1px solid rgba(200,50,50,0.3);color:#ff8888;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px;margin-top:16px';
+    resetBtn.onclick = async function() {
+      if (!confirm('Delete files and folders from the virtual filesystem? Installed .beep apps in /Apps and your settings will remain. This cannot be undone.')) return;
+      try {
+        var rootEntries = await db.fs.list('/');
+        for (var entry of rootEntries) {
+          if (entry.path === '/Apps') continue;
+          await db.fs.deleteAll(entry.path);
+          await db.fs.delete(entry.path);
+        }
+        for (var folder of ['/Desktop', '/Documents', '/Pictures', '/Music', '/Downloads']) {
+          if (!(await db.fs.get(folder))) await fs.mkdir(folder);
+        }
+        location.reload();
+      } catch (error) {
+        console.error('[settings] Filesystem reset failed:', error);
+        alert('Could not reset the filesystem. Check the Developer / Debug console logs for details.');
+      }
+    };
+    main.appendChild(resetBtn);
   }
 
   // ── System ───────────────────────────────────────────────────────────────────
