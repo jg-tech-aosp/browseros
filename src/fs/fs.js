@@ -309,8 +309,9 @@ export class FileSystem {
 
   async trash(path) {
     path = normPath(path);
-    if (path === '/' || path === '/.RecycleBin' || path.startsWith('/.RecycleBin/')) {
-      return { ok: false, error: 'This location cannot be moved to the recycle bin' };
+    const protectedPaths = ['/', '/.RecycleBin', '/Desktop', '/Documents', '/Pictures', '/Music', '/Downloads', '/Apps'];
+    if (protectedPaths.includes(path) || path.startsWith('/.RecycleBin/')) {
+      return { ok: false, error: 'This system folder cannot be moved to the recycle bin; delete its contents instead' };
     }
     const node = await this._db.fs.get(path);
     if (!node) return { ok: false, error: `${path} does not exist` };
