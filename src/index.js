@@ -253,7 +253,7 @@ async function boot() {
 
     // Ctrl+Space opens search overlay
     document.addEventListener('keydown', e => {
-      if (e.ctrlKey && e.code === 'Space') {
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey && e.code === 'Space') {
         e.preventDefault();
         search.toggle();
       }
