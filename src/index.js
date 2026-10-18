@@ -37,6 +37,7 @@ import { Desktop }        from './shell/desktop.js';
 import { Taskbar }       from './shell/taskbar.js';
 import { StartMenu }  from './shell/startmenu.js';
 import { Search }     from './shell/search.js';
+import { createFileAssociations } from './shell/file-associations.js';
 
 // ─── Inbox app paths ──────────────────────────────────────────────────────────
 // These .beep files must exist in the filesystem at boot.
@@ -212,10 +213,11 @@ async function boot() {
 
     // Wire launcher into kernel (circular ref resolved here)
     kernel._launcher = launcher;
+    const fileAssociations = createFileAssociations({ wm, launcher, db, settings });
 
     // Register native system apps
     registerSettingsApp({ wm, settings, kernel, db, fs });
-    registerFileManager({ wm, fs, db, launcher, kernel, settings });
+    registerFileManager({ wm, fs, db, launcher, kernel, settings, fileAssociations });
     registerBrowser({ wm, fs, db });
     registerAppStore({ wm, fs, db, launcher });
     registerMusicPlayer({ wm, fs });
@@ -231,7 +233,7 @@ async function boot() {
     notifications.boot();
 
     console.log('[bos] Booting desktop...');
-    const desktop = new Desktop({ fs, db, wm, launcher, kernel, settings });
+    const desktop = new Desktop({ fs, db, wm, launcher, kernel, settings, fileAssociations });
     await desktop.boot();
 
     // ── 8. Taskbar ────────────────────────────────────────────────────────────
