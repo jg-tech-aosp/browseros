@@ -7,6 +7,47 @@
  * Has direct access to the Settings store and kernel for live changes.
  */
 
+/**
+ * Keep a bounded console history for the Developer / Debug page.
+ * Original console methods still run; entries stay in memory only.
+ */
+const DEBUG_LOG_LIMIT = 500;
+const DEBUG_LOGS = [];
+function formatDebugValue(value) {
+  if (value instanceof Error) return value.stack || value.message;
+  if (typeof value === 'string') return value;
+  try {
+    const seen = new WeakSet();
+    const json = JSON.stringify(value, function(key, item) {
+      if (item && typeof item === 'object') {
+        if (seen.has(item)) return '[Circular]';
+        seen.add(item);
+      }
+      return item;
+    });
+    return json === undefined ? String(value) : json;
+  } catch (_) {
+    return String(value);
+  }
+}
+(function captureConsole() {
+  ['log', 'info', 'warn', 'error', 'debug'].forEach(function(level) {
+    const original = console[level] && console[level].bind(console);
+    if (!original) return;
+    const wrapped = function() {
+      const args = Array.from(arguments);
+      DEBUG_LOGS.push({
+        time: new Date().toISOString(),
+        level: level,
+        message: args.map(formatDebugValue).join(' '),
+      });
+      if (DEBUG_LOGS.length > DEBUG_LOG_LIMIT) DEBUG_LOGS.shift();
+      original.apply(console, args);
+    };
+    console[level] = wrapped;
+  });
+})();
+
 export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
 
   wm.registerSystemApp('settings', {
@@ -28,6 +69,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
         { id:'apps',       label:'📦 Apps' },
         { id:'storage',    label:'💾 Storage' },
         { id:'system',     label:'⚙️ System' },
+        { id:'developer',  label:'🛠️ Developer / Debug' },
       ];
 
       var main = document.createElement('div');
@@ -72,6 +114,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     else if (id === 'apps')       renderApps(main);
     else if (id === 'storage')    renderStorage(main);
     else if (id === 'system')     renderSystem(main);
+    else if (id === 'developer') renderDeveloper(main);
   }
 
   function h2(text) {
@@ -451,15 +494,6 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     bar.innerHTML = '<div style="height:100%;background:var(--wm-accent);width:' + pct + '%;border-radius:4px;transition:width 0.3s"></div>';
     main.appendChild(bar);
 
-    var resetBtn = document.createElement('button');
-    resetBtn.textContent = '🗑️ Reset Filesystem';
-    resetBtn.style.cssText = 'background:rgba(200,50,50,0.15);border:1px solid rgba(200,50,50,0.3);color:#ff8888;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px;margin-top:16px';
-    resetBtn.onclick = async function() {
-      if (!confirm('Delete ALL files? This cannot be undone.')) return;
-      var req = indexedDB.deleteDatabase('BrowserOS3Dev');
-      req.onsuccess = function() { location.reload(); };
-    };
-    main.appendChild(resetBtn);
   }
 
   // ── System ───────────────────────────────────────────────────────────────────
@@ -478,15 +512,125 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
       main.appendChild(row(item.label, null, document.createTextNode(item.value)));
     });
 
+  }
+  // ── Developer / Debug ───────────────────────────────────────────────────────
+
+  function renderDeveloper(main) {
+    main.appendChild(h2('Developer / Debug'));
+
+    var note = document.createElement('p');
+    note.textContent = 'Tools for inspecting this BrowserOS session. Console history stays in memory and is cleared when the page reloads.';
+    note.style.cssText = 'font-size:13px;line-height:1.5;color:var(--wm-text-dim);margin:-10px 0 18px';
+    main.appendChild(note);
+
+    main.appendChild(h2('Session inspection'));
+    var details = document.createElement('div');
+    details.style.cssText = 'border:1px solid var(--wm-border);border-radius:8px;padding:0 12px;margin-bottom:14px';
+    main.appendChild(details);
+
+    async function refreshInspection() {
+      details.innerHTML = '';
+      var appCount = 0;
+      var fileCount = 0;
+      try { appCount = (await db.apps.all()).length; } catch (_) {}
+      try { fileCount = (await fs.ls('/')).length; } catch (_) {}
+      var info = [
+        ['BrowserOS', '3 Dev'],
+        ['Browser', navigator.userAgent || 'Unavailable'],
+        ['Platform', navigator.userAgentData?.platform || navigator.platform || 'Unavailable'],
+        ['Language', navigator.language || 'Unavailable'],
+        ['Viewport', window.innerWidth + ' × ' + window.innerHeight],
+        ['Installed .beep apps', String(appCount)],
+        ['Root filesystem entries', String(fileCount)],
+      ];
+      info.forEach(function(item) {
+        details.appendChild(row(item[0], null, document.createTextNode(item[1])));
+      });
+    }
+    refreshInspection();
+
+    var refreshButton = document.createElement('button');
+    refreshButton.type = 'button';
+    refreshButton.textContent = 'Refresh inspection';
+    refreshButton.style.cssText = 'padding:7px 10px;border:1px solid var(--wm-border);border-radius:6px;background:var(--wm-hover);color:var(--wm-text);cursor:pointer;margin-bottom:20px';
+    refreshButton.onclick = refreshInspection;
+    main.appendChild(refreshButton);
+
+    main.appendChild(h2('Experiments'));
+    main.appendChild(row('Show layout outlines', 'Draw outlines around interface elements to inspect layout boundaries',
+      toggle(settings.get('debugLayoutOutlines') === true, async function(value) {
+        await settings.set('debugLayoutOutlines', value);
+      })
+    ));
+
+    main.appendChild(h2('Recent console logs'));
+    var logToolbar = document.createElement('div');
+    logToolbar.style.cssText = 'display:flex;gap:8px;margin-bottom:8px';
+    var logList = document.createElement('pre');
+    logList.setAttribute('aria-label', 'Recent console logs');
+    logList.style.cssText = 'white-space:pre-wrap;overflow:auto;max-height:220px;padding:10px;border:1px solid var(--wm-border);border-radius:7px;background:rgba(0,0,0,.18);color:var(--wm-text);font:11px/1.45 ui-monospace,Consolas,monospace';
+    function renderLogs() {
+      var entries = DEBUG_LOGS.slice(-100);
+      logList.textContent = entries.length
+        ? entries.map(function(entry) {
+            return '[' + entry.time + '] ' + entry.level.toUpperCase() + ' ' + entry.message;
+          }).join('\n')
+        : 'No console entries captured yet.';
+      logList.scrollTop = logList.scrollHeight;
+    }
+    function logButton(label, handler) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.style.cssText = 'padding:6px 9px;border:1px solid var(--wm-border);border-radius:6px;background:var(--wm-hover);color:var(--wm-text);cursor:pointer';
+      button.onclick = handler;
+      logToolbar.appendChild(button);
+    }
+    logButton('Refresh', renderLogs);
+    logButton('Copy logs', async function() {
+      var text = DEBUG_LOGS.map(function(entry) {
+        return '[' + entry.time + '] ' + entry.level.toUpperCase() + ' ' + entry.message;
+      }).join('\n');
+      try {
+        await navigator.clipboard.writeText(text);
+        alert('Console logs copied. Review them before sharing; they may contain session details.');
+      } catch (_) {
+        alert('Could not access the clipboard. Select and copy the log text manually.');
+      }
+    });
+    logButton('Clear logs', function() {
+      DEBUG_LOGS.length = 0;
+      renderLogs();
+    });
+    main.appendChild(logToolbar);
+    main.appendChild(logList);
+    renderLogs();
+
+    main.appendChild(h2('Reset controls'));
     var resetSettingsBtn = document.createElement('button');
+    resetSettingsBtn.type = 'button';
     resetSettingsBtn.textContent = 'Reset Settings to Defaults';
-    resetSettingsBtn.style.cssText = 'background:rgba(200,50,50,0.15);border:1px solid rgba(200,50,50,0.3);color:#ff8888;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px;margin-top:20px';
+    resetSettingsBtn.style.cssText = 'background:rgba(200,50,50,0.15);border:1px solid rgba(200,50,50,0.3);color:#ff8888;border-radius:6px;padding:8px 12px;cursor:pointer;font-size:13px;margin:0 8px 10px 0';
     resetSettingsBtn.onclick = async function() {
-      if (!confirm('Reset all settings to defaults?')) return;
+      if (!confirm('Reset all BrowserOS settings to their defaults? Your files and installed apps will remain.')) return;
       await settings.reset();
       wm.applyTheme(settings.getTheme());
       kernel.broadcast('themeChanged', settings.getTheme());
+      renderDeveloper(main);
     };
     main.appendChild(resetSettingsBtn);
+
+    var resetDataBtn = document.createElement('button');
+    resetDataBtn.type = 'button';
+    resetDataBtn.textContent = 'Reset all BrowserOS data';
+    resetDataBtn.style.cssText = 'background:rgba(200,50,50,0.15);border:1px solid rgba(200,50,50,0.3);color:#ff8888;border-radius:6px;padding:8px 12px;cursor:pointer;font-size:13px;margin:0 0 10px';
+    resetDataBtn.onclick = function() {
+      if (!confirm('Delete all BrowserOS data in this browser? This removes files, installed .beep apps, app data, and settings. This cannot be undone.')) return;
+      var request = indexedDB.deleteDatabase('BrowserOS3Dev');
+      request.onsuccess = function() { location.reload(); };
+      request.onerror = function() { alert('BrowserOS could not reset its data. Check whether another BrowserOS tab is open.'); };
+      request.onblocked = function() { alert('Close other BrowserOS tabs, then try the reset again.'); };
+    };
+    main.appendChild(resetDataBtn);
   }
 }
