@@ -494,6 +494,190 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     bar.innerHTML = '<div style="height:100%;background:var(--wm-accent);width:' + pct + '%;border-radius:4px;transition:width 0.3s"></div>';
     main.appendChild(bar);
 
+    main.appendChild(h2('Backup and restore'));
+    var backupNote = document.createElement('p');
+    backupNote.textContent = 'Save a copy of one file, or export your complete BrowserOS profile. A full backup includes files, settings, installed apps, app permissions, and supported app data.';
+    backupNote.style.cssText = 'font-size:13px;line-height:1.5;color:var(--wm-text-dim);margin:-10px 0 12px';
+    main.appendChild(backupNote);
+
+    function backupButton(label) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.style.cssText = 'padding:8px 12px;border:1px solid var(--wm-border);border-radius:6px;background:var(--wm-hover);color:var(--wm-text);cursor:pointer;margin:0 8px 8px 0';
+      return button;
+    }
+    function downloadBlob(blob, filename) {
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    }
+    function safeFilename(name) {
+      return String(name || 'browseros-backup').replace(/[^a-z0-9._-]/gi, '_');
+    }
+
+    var fullBackupBtn = backupButton('Download full profile (.zip)');
+    fullBackupBtn.onclick = async function() {
+      if (typeof JSZip === 'undefined') {
+        alert('The ZIP library is unavailable. Reload BrowserOS and try again.');
+        return;
+      }
+      fullBackupBtn.disabled = true;
+      fullBackupBtn.textContent = 'Creating backup…';
+      try {
+        var snapshot = await db.exportSnapshot();
+        var zip = new JSZip();
+        zip.file('manifest.json', JSON.stringify({
+          format: 'browseros-backup',
+          version: 1,
+          createdAt: snapshot.exportedAt,
+          contents: ['files', 'settings', 'installed-apps', 'app-data', 'app-permissions'],
+        }, null, 2));
+        zip.file('profile.json', JSON.stringify(snapshot));
+        var archive = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+        downloadBlob(archive, 'BrowserOS-backup-' + new Date().toISOString().slice(0, 10) + '.zip');
+      } catch (error) {
+        console.error('[settings] Profile backup failed:', error);
+        alert('Could not create the BrowserOS backup. Check available browser storage and try again.');
+      } finally {
+        fullBackupBtn.disabled = false;
+        fullBackupBtn.textContent = 'Download full profile (.zip)';
+      }
+    };
+    main.appendChild(fullBackupBtn);
+
+    var restoreInput = document.createElement('input');
+    restoreInput.type = 'file';
+    restoreInput.accept = '.zip,application/zip';
+    restoreInput.style.cssText = 'display:block;margin:4px 0 8px;color:var(--wm-text-dim)';
+    main.appendChild(restoreInput);
+    var restoreMode = document.createElement('select');
+    restoreMode.style.cssText = 'padding:7px;border:1px solid var(--wm-border);border-radius:6px;background:var(--wm-bg);color:var(--wm-text);margin-right:8px';
+    [['replace', 'Replace current profile'], ['merge', 'Merge into current profile']].forEach(function(option) {
+      var el = document.createElement('option');
+      el.value = option[0];
+      el.textContent = option[1];
+      restoreMode.appendChild(el);
+    });
+    main.appendChild(restoreMode);
+    var restoreBtn = backupButton('Restore profile from .zip');
+    restoreBtn.onclick = async function() {
+      var archiveFile = restoreInput.files && restoreInput.files[0];
+      if (!archiveFile) { alert('Choose a BrowserOS backup .zip first.'); return; }
+      if (archiveFile.size > 128 * 1024 * 1024) { alert('This backup is larger than the 128 MB restore limit.'); return; }
+      var mode = restoreMode.value;
+      var prompt = mode === 'replace'
+        ? 'Replace this BrowserOS profile with the backup? Current files, apps, app data, and settings will be overwritten.'
+        : 'Merge this backup into the current profile? Matching files, apps, and settings will be overwritten.';
+      if (!confirm(prompt + ' BrowserOS will reload after the restore.')) return;
+      restoreBtn.disabled = true;
+      restoreBtn.textContent = 'Restoring…';
+      try {
+        if (typeof JSZip === 'undefined') throw new Error('The ZIP library is unavailable');
+        var zip = await JSZip.loadAsync(archiveFile, { checkCRC32: true });
+        var manifestFile = zip.file('manifest.json');
+        var profileFile = zip.file('profile.json');
+        if (!manifestFile || !profileFile) throw new Error('This ZIP is missing the BrowserOS backup files');
+        var manifest = JSON.parse(await manifestFile.async('string'));
+        if (manifest.format !== 'browseros-backup' || manifest.version !== 1) throw new Error('Unsupported BrowserOS backup format');
+        var profileText = await profileFile.async('string');
+        if (profileText.length > 128 * 1024 * 1024) throw new Error('Backup profile is too large');
+        var snapshot = JSON.parse(profileText);
+        await db.restoreSnapshot(snapshot, mode);
+        location.reload();
+      } catch (error) {
+        console.error('[settings] Profile restore failed:', error);
+        alert('Could not restore this backup: ' + (error.message || String(error)));
+        restoreBtn.disabled = false;
+        restoreBtn.textContent = 'Restore profile from .zip';
+      }
+    };
+    main.appendChild(restoreBtn);
+
+    main.appendChild(h2('Single file backup'));
+    var pathInput = document.createElement('input');
+    pathInput.type = 'text';
+    pathInput.placeholder = '/Documents/example.txt';
+    pathInput.setAttribute('aria-label', 'BrowserOS file path');
+    pathInput.style.cssText = 'width:min(100%,360px);padding:8px;border:1px solid var(--wm-border);border-radius:6px;background:var(--wm-bg);color:var(--wm-text);margin:0 8px 8px 0';
+    main.appendChild(pathInput);
+    var exportFileBtn = backupButton('Download file');
+    exportFileBtn.onclick = async function() {
+      var path = pathInput.value.trim();
+      if (!path) { alert('Enter a BrowserOS file path first.'); return; }
+      try {
+        var node = await fs._raw(path);
+        if (!node || node.type !== 'file') throw new Error('File not found');
+        var bytes;
+        if (node.encoding === 'base64') {
+          var binary = atob(node.content || '');
+          bytes = new Uint8Array(binary.length);
+          for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        } else {
+          bytes = new Blob([node.content || '']);
+        }
+        downloadBlob(new Blob([bytes], { type: node.mime || 'application/octet-stream' }), safeFilename(path.split('/').pop()));
+      } catch (error) {
+        alert('Could not download that file: ' + (error.message || String(error)));
+      }
+    };
+    main.appendChild(exportFileBtn);
+
+    var importFileInput = document.createElement('input');
+    importFileInput.type = 'file';
+    importFileInput.setAttribute('aria-label', 'Choose a file to restore');
+    importFileInput.style.cssText = 'display:block;margin:4px 0 8px;color:var(--wm-text-dim)';
+    importFileInput.onchange = function() {
+      var chosen = importFileInput.files && importFileInput.files[0];
+      if (chosen) pathInput.value = '/Downloads/' + chosen.name;
+    };
+    main.appendChild(importFileInput);
+    var restoreFileBtn = backupButton('Restore selected file to path');
+    restoreFileBtn.onclick = async function() {
+      var chosen = importFileInput.files && importFileInput.files[0];
+      var path = pathInput.value.trim();
+      if (!chosen || !path) { alert('Choose a file and enter its BrowserOS destination path.'); return; }
+      if (!path.startsWith('/') || path.split('/').includes('..')) { alert('Use a valid absolute BrowserOS path.'); return; }
+      try {
+        var buffer = await chosen.arrayBuffer();
+        var mime = chosen.type || 'application/octet-stream';
+        var textual = mime.startsWith('text/') || ['application/json', 'application/javascript', 'image/svg+xml', 'application/beep'].includes(mime);
+        var value;
+        if (textual) value = new TextDecoder().decode(buffer);
+        else {
+          var data = new Uint8Array(buffer);
+          var binary = '';
+          for (var offset = 0; offset < data.length; offset += 0x8000) {
+            binary += String.fromCharCode.apply(null, data.subarray(offset, offset + 0x8000));
+          }
+          value = btoa(binary);
+        }
+        var existing = await fs._raw(path);
+        if (existing) {
+          var parts = path.split('/');
+          var filename = parts.pop();
+          var folder = parts.join('/') || '/';
+          path = (folder === '/' ? '' : folder) + '/' + filename;
+          var dot = filename.lastIndexOf('.');
+          var stem = dot > 0 ? filename.slice(0, dot) : filename;
+          var ext = dot > 0 ? filename.slice(dot) : '';
+          var suffix = 1;
+          while (await fs._raw(path)) {
+            path = (folder === '/' ? '' : folder) + '/' + stem + '(' + suffix++ + ')' + ext;
+          }
+        }
+        var result = await fs.write(path, value);
+        if (!result.ok) throw new Error(result.error || 'Could not write file');
+        alert('File restored to ' + path);
+      } catch (error) {
+        alert('Could not restore that file: ' + (error.message || String(error)));
+      }
+    };
+    main.appendChild(restoreFileBtn);
+
     var resetBtn = document.createElement('button');
     resetBtn.type = 'button';
     resetBtn.textContent = '🗑️ Reset Filesystem';
