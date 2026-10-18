@@ -34,6 +34,19 @@ function arrayBufferToBase64(buffer) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function normalizeFileTypes(fileTypes) {
+  if (fileTypes === undefined) return [];
+  if (!Array.isArray(fileTypes)) throw new Error('.beep manifest "fileTypes" must be an array');
+  return [...new Set(fileTypes.map(value => {
+    let type = String(value).trim().toLowerCase();
+    if (!type.startsWith('.')) type = '.' + type;
+    if (!/^\\.[a-z0-9][a-z0-9.+_-]*$/.test(type)) {
+      throw new Error('Invalid file type in .beep manifest: ' + value);
+    }
+    return type;
+  }))];
+}
+
 function generateInstanceId(appId) {
   return `${appId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 }
@@ -73,6 +86,7 @@ function validateManifest(manifest, path) {
   if (!Array.isArray(manifest.events)) {
     throw new Error('.beep manifest "events" must be an array');
   }
+  normalizeFileTypes(manifest.fileTypes);
   // BOS version check
   const required_bos = parseFloat(manifest.bos);
   const current_bos  = 2.0;
@@ -270,6 +284,7 @@ export class Launcher {
       emoji:       iconEmoji,     // always set, used as text fallback
       permissions: manifest.permissions,
       requestedPermissions: manifest.permissions,
+      fileTypes:    normalizeFileTypes(manifest.fileTypes),
       storageId:   createStorageId(),
       permissionDecisionVersion: 1,
       events:      manifest.events,
@@ -458,6 +473,7 @@ export class Launcher {
           emoji:       manifest.emoji || '⚡',
           permissions: manifest.permissions,
           requestedPermissions: manifest.permissions,
+          fileTypes:    normalizeFileTypes(manifest.fileTypes),
           storageId:   createStorageId(),
           permissionDecisionVersion: 1,
           events:      manifest.events,
