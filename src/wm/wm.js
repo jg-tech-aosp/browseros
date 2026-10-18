@@ -862,7 +862,8 @@ export class WindowManager {
         win.classList.remove('wm-window-dragging');
         if (iceMode && this._settings?.get('iceMode') === true &&
             this._settings?.get('reduceMotion') !== true) {
-          startSlide(velocityX * 1.15, velocityY * 1.15);
+          const releaseDamping = Math.exp(-0.0022 * Math.max(0, performance.now() - lastTime));
+          startSlide(velocityX * releaseDamping * 1.15, velocityY * releaseDamping * 1.15);
         }
       };
       document.addEventListener('mousemove', onMove);
