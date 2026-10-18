@@ -1,5 +1,7 @@
 import { isImageFile } from './imageviewer.js';
 
+const TRASH_VIEW = '::recycle-bin::';
+
 /**
  * BrowserOS v2 — File Manager (Native System Component)
  * src/shell/filemanager.js
@@ -47,10 +49,12 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
       const importBtn    = mkBtn('⬆ Import', 'Import from your computer');
       importBtn.style.cssText += ';background:rgba(0,120,212,0.2);border-color:rgba(0,120,212,0.4);color:#66aaff';
       const refreshBtn   = mkBtn('⟳', 'Refresh');
+      const emptyTrashBtn = mkBtn('🗑️ Empty Bin', 'Permanently delete everything in the Recycle Bin');
+      emptyTrashBtn.style.display = 'none';
       const fileInput    = document.createElement('input');
       fileInput.type = 'file'; fileInput.multiple = true; fileInput.style.display = 'none';
 
-      [backBtn, upBtn, pathInput, newFolderBtn, newFileBtn, importBtn, refreshBtn, fileInput].forEach(el => toolbar.appendChild(el));
+      [backBtn, upBtn, pathInput, newFolderBtn, newFileBtn, importBtn, refreshBtn, emptyTrashBtn, fileInput].forEach(el => toolbar.appendChild(el));
       container.appendChild(toolbar);
 
       // ── Layout ────────────────────────────────────────────────────────────────
@@ -70,6 +74,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
         { label: '🖼️ Pictures',   path: '/Pictures' },
         { label: '⬇️ Downloads',  path: '/Downloads' },
         { label: '🎵 Music',      path: '/Music' },
+        { label: '🗑️ Recycle Bin', path: TRASH_VIEW },
         { label: '⚡ Apps',       path: '/Apps' },
       ];
 
@@ -136,10 +141,17 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
       // ── Render ────────────────────────────────────────────────────────────────
 
       async function render() {
-        pathInput.value = cwd;
+        pathInput.value = cwd === TRASH_VIEW ? 'Recycle Bin' : cwd;
         selected = null;
         grid.innerHTML = '';
         renderSidebar();
+        const inTrash = cwd === TRASH_VIEW;
+        [newFolderBtn, newFileBtn, importBtn].forEach(button => { button.style.display = inTrash ? 'none' : ''; });
+        emptyTrashBtn.style.display = inTrash ? '' : 'none';
+        if (inTrash) {
+          await renderTrash();
+          return;
+        }
 
         // Special case: /Apps shows all installed apps from DB + native system apps
         if (cwd === '/Apps') {
@@ -286,6 +298,55 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
 
       }
 
+      async function renderTrash() {
+        grid.style.display = 'flex';
+        grid.style.flexDirection = 'column';
+        grid.style.alignContent = 'stretch';
+        grid.style.gap = '6px';
+        const items = await fs.listTrash();
+        statusBar.textContent = items.length + ' item' + (items.length === 1 ? '' : 's') + ' in Recycle Bin';
+        if (!items.length) {
+          grid.innerHTML = '<div style="padding:16px;color:var(--wm-text-dim)">Recycle Bin is empty</div>';
+          emptyTrashBtn.disabled = true;
+          return;
+        }
+        emptyTrashBtn.disabled = false;
+        items.forEach(item => {
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--wm-border);border-radius:7px;background:rgba(255,255,255,.03);min-height:54px';
+          const icon = document.createElement('span');
+          icon.style.cssText = 'font-size:24px';
+          icon.textContent = fileIcon(item.originalName, item.originalType);
+          const details = document.createElement('div');
+          details.style.cssText = 'flex:1;min-width:0';
+          const name = document.createElement('div');
+          name.style.cssText = 'font-size:13px;color:var(--wm-text);word-break:break-word';
+          name.textContent = item.originalName;
+          const date = document.createElement('div');
+          date.style.cssText = 'font-size:11px;color:var(--wm-text-dim);margin-top:2px';
+          date.textContent = 'Deleted ' + new Date(item.deletedAt).toLocaleString() + ' · ' + item.originalPath;
+          details.append(name, date);
+          const restore = mkBtn('↩ Restore');
+          restore.onclick = async () => {
+            restore.disabled = true;
+            const result = await fs.restoreTrash(item.id);
+            if (!result.ok) { wm.notify('Restore failed: ' + result.error); restore.disabled = false; return; }
+            wm.notify('Restored to ' + result.path);
+            render();
+          };
+          const remove = mkBtn('Permanently Delete');
+          remove.style.cssText += ';color:#ff8888;border-color:rgba(200,50,50,.35)';
+          remove.onclick = async () => {
+            if (!confirm('Permanently delete "' + item.originalName + '" and its contents? This cannot be undone.')) return;
+            const result = await fs.permanentlyDeleteTrash(item.id);
+            if (!result.ok) { wm.notify('Delete failed: ' + result.error); return; }
+            render();
+          };
+          row.append(icon, details, restore, remove);
+          grid.appendChild(row);
+        });
+      }
+
       // ── /Apps virtual directory ───────────────────────────────────────────────
 
       async function renderAppsDir() {
@@ -387,8 +448,8 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
             const nn = prompt('New name:', item.name);
             if (nn && nn !== item.name) { await fs.rename(fullPath(item.name), nn); render(); }
           }},
-          { label: '🗑️ Delete', action: async () => {
-            if (!confirm('Delete "' + item.name + '"?')) return;
+          { label: '🗑️ Move to Recycle Bin', action: async () => {
+            if (!confirm('Move "' + item.name + '" to the Recycle Bin?')) return;
             const res = await fs.rm(fullPath(item.name));
             if (res.ok) render(); else wm.notify('Delete failed: ' + res.error);
           }}
@@ -467,6 +528,13 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
       newFolderBtn.onclick = async () => { const n = prompt('Folder name:'); if (n) { await fs.mkdir(fullPath(n)); render(); }};
       newFileBtn.onclick   = async () => { const n = prompt('File name:', 'untitled.txt'); if (n) { await createFile(fullPath(n), ''); render(); }};
       refreshBtn.onclick   = render;
+      emptyTrashBtn.onclick = async () => {
+        const items = await fs.listTrash();
+        if (!items.length || !confirm('Permanently delete all ' + items.length + ' item(s) in the Recycle Bin? This cannot be undone.')) return;
+        const result = await fs.emptyTrash();
+        if (!result.ok) { wm.notify('Could not empty the Recycle Bin'); return; }
+        render();
+      };
       importBtn.onclick    = () => fileInput.click();
 
       fileInput.onchange = async () => {
