@@ -314,10 +314,29 @@ function makeSettingsStore(db) {
 
 export class DB {
   constructor(idb) {
+    this._idb     = idb;
     this.fs       = makeFsStore(idb);
     this.apps     = makeAppsStore(idb);
     this.appData  = makeAppDataStore(idb);
     this.settings = makeSettingsStore(idb);
+  }
+
+  /** Clear all persisted BrowserOS data while keeping the open database usable. */
+  clearAll() {
+    const storeNames = Array.from(this._idb.objectStoreNames);
+    return new Promise((resolve, reject) => {
+      let transaction;
+      try {
+        transaction = this._idb.transaction(storeNames, 'readwrite');
+        storeNames.forEach(name => transaction.objectStore(name).clear());
+      } catch (error) {
+        reject(error);
+        return;
+      }
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error || new Error('BrowserOS data reset failed'));
+      transaction.onabort = () => reject(transaction.error || new Error('BrowserOS data reset was aborted'));
+    });
   }
 
   /**
