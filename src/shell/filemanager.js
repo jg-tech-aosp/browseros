@@ -8,7 +8,7 @@ import { isImageFile } from './imageviewer.js';
  * Direct FS access, full drag-and-drop support.
  */
 
-export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) {
+export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fileAssociations }) {
 
   wm.registerSystemApp('filemanager', {
     title:  'File Manager',
@@ -352,33 +352,8 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
 
       // ── File opening ──────────────────────────────────────────────────────────
 
-      async function openFile(path, name) {
-        const ext = name.split('.').pop().toLowerCase();
-        if (name.endsWith('.beep')) {
-          await launcher.launch(path);
-        } else if (ext === 'stage') {
-          if (!await db.apps.get('stage')) {
-            wm.notify('Install Stage from the App Store to open this presentation');
-            return;
-          }
-          try { await launcher.launchById('stage', { file: path }); }
-          catch (error) { wm.notify('Could not open Stage: ' + error.message); }
-        } else if (ext === 'writer') {
-          if (!await db.apps.get('writer')) {
-            wm.notify('Install Writer from the App Store to open this document');
-            return;
-          }
-          try { await launcher.launchById('writer', { file: path }); }
-          catch (error) { wm.notify('Could not open Writer: ' + error.message); }
-        } else if (['txt','md','js','json','html','css'].includes(ext)) {
-          wm.openSystemApp('texteditor', { file: path });
-        } else if (['mp3','wav','ogg'].includes(ext)) {
-          wm.openSystemApp('musicplayer', { file: path });
-        } else if (isImageFile(name)) {
-          wm.openSystemApp('imageviewer', { file: path });
-        } else {
-          wm.notify('No app to open: ' + name);
-        }
+      async function openFile(path, name, choose = false) {
+        await fileAssociations.open(path, name, { choose });
       }
 
       // ── Context menus ─────────────────────────────────────────────────────────
@@ -391,6 +366,9 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
             else openFile(fullPath(item.name), item.name);
           }},
         ];
+        if (item.type === 'file' && !item.name.toLowerCase().endsWith('.beep')) {
+          items.push({ label: '🧭 Open with', action: () => openFile(fullPath(item.name), item.name, true) });
+        }
         if (isImage && item.type === 'file') {
           items.push({ label: '🎨 Open in Paint', action: () => wm.openSystemApp('paint', { file: fullPath(item.name) }) });
         }
