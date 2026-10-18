@@ -3,7 +3,7 @@
  * src/shell/terminal.js
  */
 
-export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
+export function registerTerminal({ wm, fs, launcher, kernel, settings, db }) {
 
   wm.registerSystemApp('terminal', {
     title:  'Terminal',
@@ -42,7 +42,9 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
       // ── Helpers ───────────────────────────────────────────────────────────────
 
       function updatePrompt() {
-        promptEl.textContent = 'root@bos:' + (cwd || '/') + ' $ ';
+        const profile = settings?.get('userProfile');
+        const username = String(profile?.name || 'user').replace(/[^a-z0-9_-]/gi, '_');
+        promptEl.textContent = username + '@browseros:' + (cwd || '/') + ' $ ';
       }
 
       function print(text, color) {
@@ -119,7 +121,6 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
           print('');
           print('System:');
           print('  echo <text>        Print text');
-          print('  clear              Clear terminal');
           print('  date               Print current date/time');
           print('  whoami             Print current user');
           print('  uname [-a]         System information');
