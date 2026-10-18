@@ -70,8 +70,16 @@ export function createFileAssociations({ wm, launcher, db, settings }) {
         row.type = 'button';
         row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--wm-control-border,rgba(255,255,255,.12));border-radius:8px;background:var(--wm-control-bg,rgba(255,255,255,.06));color:inherit;text-align:left;cursor:pointer;font:inherit';
         const icon = document.createElement('span');
-        icon.textContent = app.icon;
-        icon.style.cssText = 'width:28px;text-align:center;font-size:20px';
+        icon.style.cssText = 'width:28px;height:28px;display:grid;place-items:center;text-align:center;font-size:20px;flex-shrink:0';
+        if (typeof app.icon === 'string' && app.icon.startsWith('data:image/')) {
+          const image = document.createElement('img');
+          image.src = app.icon;
+          image.alt = '';
+          image.style.cssText = 'max-width:28px;max-height:28px;object-fit:contain';
+          icon.appendChild(image);
+        } else {
+          icon.textContent = app.icon;
+        }
         const label = document.createElement('span');
         label.textContent = app.name;
         label.style.cssText = 'flex:1;font-size:13px';
@@ -158,7 +166,7 @@ export function createFileAssociations({ wm, launcher, db, settings }) {
     const handlers = apps.filter(app => app.fileTypes.includes(extension));
     const associations = settings.get('fileAssociations') || {};
     const defaultKey = associations[extension];
-    const savedDefault = handlers.find(app => app.key === defaultKey);
+    const savedDefault = apps.find(app => app.key === defaultKey);
     if (!choose && savedDefault) {
       await launch(savedDefault, path);
       return;
@@ -167,12 +175,12 @@ export function createFileAssociations({ wm, launcher, db, settings }) {
       await launch(handlers[0], path);
       return;
     }
-    if (handlers.length) {
-      await chooseAndOpen(name, path, handlers, extension);
-      return;
-    }
     if (choose) {
       await chooseAndOpen(name, path, apps, extension);
+      return;
+    }
+    if (handlers.length) {
+      await chooseAndOpen(name, path, handlers, extension);
       return;
     }
     wm.notify(extension
