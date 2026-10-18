@@ -334,6 +334,7 @@ export class WindowManager {
     this._switcherOverlay = null;
     this._switcherWindows = [];
     this._switcherIndex = 0;
+    this._switcherReturnFocus = null;
     this._systemApps = new Map(); // appId → mount function (for native apps)
   }
 
@@ -534,7 +535,10 @@ export class WindowManager {
         } else if (event.key === 'Enter') {
           event.preventDefault();
           this._closeAppSwitcher(true);
-        } else if (event.key === 'Tab' || event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        } else if (event.key === 'Tab') {
+          event.preventDefault();
+          this._stepAppSwitcher(event.shiftKey ? -1 : 1);
+        } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
           event.preventDefault();
           this._stepAppSwitcher(1);
         } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
@@ -580,6 +584,7 @@ export class WindowManager {
       ...[...this._windows.keys()].filter(id => !this._focusOrder.includes(id))];
     if (!ids.length) return;
     this._switcherWindows = ids;
+    this._switcherReturnFocus = document.activeElement;
     const activeIndex = ids.indexOf(this._activeId);
     this._switcherIndex = ids.length > 1 ? (activeIndex + 1 + ids.length) % ids.length : 0;
     overlay.hidden = false;
@@ -613,10 +618,16 @@ export class WindowManager {
       title.className = 'wm-switcher-title';
       title.textContent = win.title || 'App';
       button.append(icon, title);
-      button.addEventListener('mouseenter', () => {
+      const select = () => {
         this._switcherIndex = index;
-        this._renderAppSwitcher();
-      });
+        list.querySelectorAll('.wm-switcher-item').forEach((item, itemIndex) => {
+          const selected = itemIndex === index;
+          item.classList.toggle('selected', selected);
+          item.setAttribute('aria-pressed', String(selected));
+        });
+      };
+      button.addEventListener('mouseenter', select);
+      button.addEventListener('focus', select);
       list.appendChild(button);
     });
   }
@@ -634,11 +645,15 @@ export class WindowManager {
     const id = this._switcherWindows[this._switcherIndex];
     this._switcherOverlay.hidden = true;
     this._switcherWindows = [];
+    const returnFocus = this._switcherReturnFocus;
+    this._switcherReturnFocus = null;
     if (activate && this._windows.has(id)) {
       const win = this._windows.get(id);
       if (win.state.minimized) this.minimize(id);
       this.focus(id);
       win.iframe?.focus();
+    } else if (returnFocus?.isConnected) {
+      returnFocus.focus();
     }
   }
 
