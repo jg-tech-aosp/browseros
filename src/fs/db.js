@@ -321,6 +321,78 @@ export class DB {
     this.settings = makeSettingsStore(idb);
   }
 
+  /**
+   * Export the complete user profile as JSON-safe store records.
+   * These records are data only; app code is never evaluated during restore.
+   */
+  async exportSnapshot() {
+    const stores = ['fs', 'apps', 'appData', 'settings'];
+    const transaction = this._idb.transaction(stores, 'readonly');
+    const snapshot = { format: 'browseros-profile', version: 1, exportedAt: new Date().toISOString(), stores: {} };
+    await Promise.all(stores.map(name => new Promise((resolve, reject) => {
+      const req = transaction.objectStore(name).getAll();
+      req.onsuccess = () => { snapshot.stores[name] = req.result; resolve(); };
+      req.onerror = () => reject(req.error);
+    })));
+    return snapshot;
+  }
+
+  /**
+   * Restore a validated profile snapshot. Merge upserts matching records;
+   * replace clears the four profile stores and writes the snapshot atomically.
+   */
+  async restoreSnapshot(snapshot, mode = 'replace') {
+    const names = ['fs', 'apps', 'appData', 'settings'];
+    if (!snapshot || snapshot.format !== 'browseros-profile' || snapshot.version !== 1 ||
+        !snapshot.stores || !['merge', 'replace'].includes(mode)) {
+      throw new Error('Unsupported or invalid BrowserOS backup');
+    }
+
+    const stores = {};
+    let total = 0;
+    for (const name of names) {
+      const records = snapshot.stores[name];
+      if (!Array.isArray(records)) throw new Error('Backup is missing the ' + name + ' store');
+      total += records.length;
+      if (total > 100000) throw new Error('Backup contains too many records');
+      stores[name] = records;
+    }
+    for (const node of stores.fs) {
+      if (!node || typeof node.path !== 'string' || !node.path.startsWith('/') ||
+          node.path.split('/').includes('..') || !['file', 'dir'].includes(node.type)) {
+        throw new Error('Backup contains an invalid filesystem entry');
+      }
+    }
+    for (const app of stores.apps) {
+      if (!app || typeof app.id !== 'string' || !app.id) throw new Error('Backup contains an invalid app record');
+    }
+    for (const record of stores.settings) {
+      if (!record || typeof record.key !== 'string') throw new Error('Backup contains an invalid setting');
+    }
+    for (const record of stores.appData) {
+      if (!record || typeof record.storageId !== 'string' || typeof record.key !== 'string' ||
+          typeof record.value !== 'string') throw new Error('Backup contains invalid app data');
+    }
+
+    return new Promise((resolve, reject) => {
+      let transaction;
+      try {
+        transaction = this._idb.transaction(names, 'readwrite');
+        if (mode === 'replace') names.forEach(name => transaction.objectStore(name).clear());
+        names.forEach(name => {
+          const store = transaction.objectStore(name);
+          stores[name].forEach(record => store.put(record));
+        });
+      } catch (error) {
+        reject(error);
+        return;
+      }
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error || new Error('Profile restore failed'));
+      transaction.onabort = () => reject(transaction.error || new Error('Profile restore was aborted'));
+    });
+  }
+
   /** Clear all persisted BrowserOS data while keeping the open database usable. */
   clearAll() {
     const storeNames = Array.from(this._idb.objectStoreNames);
