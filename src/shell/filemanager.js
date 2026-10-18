@@ -148,6 +148,14 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
         const inTrash = cwd === TRASH_VIEW;
         [newFolderBtn, newFileBtn, importBtn].forEach(button => { button.style.display = inTrash ? 'none' : ''; });
         emptyTrashBtn.style.display = inTrash ? '' : 'none';
+        if (!inTrash) {
+          grid.style.display = 'grid';
+          grid.style.flexDirection = '';
+          grid.style.alignContent = 'start';
+          grid.style.gap = '4px';
+        } else {
+          mainArea.oncontextmenu = null;
+        }
         if (inTrash) {
           await renderTrash();
           return;
@@ -271,13 +279,14 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
         // Drop zone for host OS files and desktop drag
         mainArea.classList.add('bos-fm-dropzone');
         mainArea.addEventListener('dragover', e => {
-          if (!e.dataTransfer.types.includes('Files')) return;
+          if (cwd === TRASH_VIEW || !e.dataTransfer.types.includes('Files')) return;
           e.preventDefault();
           mainArea.style.outline = '2px dashed var(--wm-accent)';
           mainArea.style.background = 'rgba(0,120,212,0.05)';
         });
         mainArea.addEventListener('dragleave', () => { mainArea.style.outline = ''; mainArea.style.background = ''; });
         mainArea.addEventListener('drop', async e => {
+          if (cwd === TRASH_VIEW) return;
           e.preventDefault();
           mainArea.style.outline = ''; mainArea.style.background = '';
           const files = Array.from(e.dataTransfer.files);
