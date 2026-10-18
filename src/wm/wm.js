@@ -68,7 +68,7 @@ const WM_STYLES = `
     transition: box-shadow 0.15s, top 0.24s cubic-bezier(.2,.75,.25,1), left 0.24s cubic-bezier(.2,.75,.25,1), width 0.24s cubic-bezier(.2,.75,.25,1), height 0.24s cubic-bezier(.2,.75,.25,1), border-radius 0.24s ease;
     user-select: none;
   }
-  .wm-window.wm-window-dragging, .wm-window.wm-window-ice-sliding { transition: none !important; }
+  .wm-window.wm-window-ice-dragging, .wm-window.wm-window-ice-sliding { transition: none !important; }
   .wm-window.wm-window-opening { animation: wm-window-open 0.22s cubic-bezier(.2,.75,.25,1) both; }
   .wm-window.wm-window-minimizing { animation: wm-window-minimize 0.18s ease-in both; pointer-events:none; }
   .wm-window.wm-window-restoring { animation: wm-window-restore 0.2s cubic-bezier(.2,.75,.25,1) both; }
@@ -829,6 +829,7 @@ export class WindowManager {
       if (w?.state.maximized) return;
       stopSlide();
       win.classList.add('wm-window-dragging');
+      if (iceMode) win.classList.add('wm-window-ice-dragging');
       const sx = e.clientX, sy = e.clientY;
       const sl = parseInt(win.style.left) || 0;
       const st = parseInt(win.style.top)  || 0;
@@ -859,7 +860,7 @@ export class WindowManager {
       const onUp = () => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
-        win.classList.remove('wm-window-dragging');
+        win.classList.remove('wm-window-dragging', 'wm-window-ice-dragging');
         if (iceMode && this._settings?.get('iceMode') === true &&
             this._settings?.get('reduceMotion') !== true) {
           const releaseDamping = Math.exp(-0.0022 * Math.max(0, performance.now() - lastTime));
