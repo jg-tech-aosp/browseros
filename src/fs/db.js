@@ -153,7 +153,7 @@ function makeFsStore(db) {
         cursor.onsuccess = e => {
           const c = e.target.result;
           if (!c || results.length >= limit) { resolve(results); return; }
-          if (c.value.type === 'file') results.push(c.value);
+          if (c.value.type === 'file' && !c.value.path.startsWith('/.RecycleBin/')) results.push(c.value);
           c.continue();
         };
         cursor.onerror = () => reject(cursor.error);
