@@ -322,6 +322,9 @@ Example:
 | `events` | Yes | OS events requested by the app |
 | `entry` | Yes | JavaScript entry point |
 | `emoji` | No | Text/emoji fallback icon |
+| `fileTypes` | No | File extensions the app can open, such as `[".stage", ".deck"]` |
+
+The optional `fileTypes` field is a list of filename extensions (with or without a leading dot). When one app declares support for a file's extension, BrowserOS opens it directly. If multiple apps support it, the user can choose an app for one time or save it as the default. The File Manager and Desktop context menus also offer **Open with** for choosing any installed app. This declaration only advertises file support; apps still need appropriate filesystem permissions to read the file.
 
 The launcher validates the required fields, checks the BOS version, extracts the icon when possible, and stores the application metadata in IndexedDB.
 
