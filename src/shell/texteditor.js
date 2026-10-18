@@ -10,6 +10,7 @@ export function registerTextEditor({ wm, fs }) {
     icon:   '📝',
     width:  680,
     height: 520,
+    fileTypes: ['.txt', '.md', '.js', '.json', '.html', '.css'],
     mount(container, instanceId, args) {
       let currentPath = null;
       let saved = true;
