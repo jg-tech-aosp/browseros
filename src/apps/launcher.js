@@ -38,7 +38,8 @@ function normalizeFileTypes(fileTypes) {
   if (fileTypes === undefined) return [];
   if (!Array.isArray(fileTypes)) throw new Error('.beep manifest "fileTypes" must be an array');
   return [...new Set(fileTypes.map(value => {
-    let type = String(value).trim().toLowerCase();
+    if (typeof value !== 'string' || !value.trim()) throw new Error('Invalid file type in .beep manifest');
+    let type = value.trim().toLowerCase();
     if (!type.startsWith('.')) type = '.' + type;
     if (!/^\.[a-z0-9][a-z0-9.+_-]*$/.test(type)) {
       throw new Error('Invalid file type in .beep manifest: ' + value);
