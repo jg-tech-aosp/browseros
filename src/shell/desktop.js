@@ -551,7 +551,7 @@ export class Desktop {
     }
 
     if (isImage && ic.fspath && !ic.isDirectory) {
-      items.push({ label: '🎨 Open in Paint', action: () => this._wm.openSystemApp('paint') });
+      items.push({ label: '🎨 Open in Paint', action: () => this._wm.openSystemApp('paint', { file: ic.fspath }) });
     }
 
     if (ic.shortcut && ic.appId) {
