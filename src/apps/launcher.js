@@ -40,7 +40,7 @@ function normalizeFileTypes(fileTypes) {
   return [...new Set(fileTypes.map(value => {
     let type = String(value).trim().toLowerCase();
     if (!type.startsWith('.')) type = '.' + type;
-    if (!/^\\.[a-z0-9][a-z0-9.+_-]*$/.test(type)) {
+    if (!/^\.[a-z0-9][a-z0-9.+_-]*$/.test(type)) {
       throw new Error('Invalid file type in .beep manifest: ' + value);
     }
     return type;
