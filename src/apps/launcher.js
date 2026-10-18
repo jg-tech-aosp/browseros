@@ -286,6 +286,7 @@ export class Launcher {
       permissions: manifest.permissions,
       requestedPermissions: manifest.permissions,
       fileTypes:    normalizeFileTypes(manifest.fileTypes),
+      fileTypeManifestVersion: 1,
       storageId:   createStorageId(),
       permissionDecisionVersion: 1,
       events:      manifest.events,
@@ -430,6 +431,37 @@ export class Launcher {
     return instanceId;
   }
 
+  async refreshFileTypes() {
+    const apps = await this._db.apps.all();
+    for (const app of apps) {
+      if (app.fileTypeManifestVersion === 1) continue;
+      try {
+        let zipArrayBuffer;
+        if (app.zipData) {
+          const binary = atob(app.zipData);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          zipArrayBuffer = bytes.buffer;
+        } else {
+          const content = await this._fs.read(app.path);
+          if (!content) continue;
+          zipArrayBuffer = content.startsWith('data:')
+            ? await fetch(content).then(response => response.arrayBuffer())
+            : Uint8Array.from(atob(content), character => character.charCodeAt(0)).buffer;
+        }
+        const zip = await JSZip.loadAsync(zipArrayBuffer);
+        const manifestFile = zip.file('manifest.json');
+        if (!manifestFile) continue;
+        const manifest = JSON.parse(await manifestFile.async('string'));
+        app.fileTypes = normalizeFileTypes(manifest.fileTypes);
+        app.fileTypeManifestVersion = 1;
+        await this._db.apps.put(app);
+      } catch (error) {
+        console.warn('[launcher] Could not update file type metadata for ' + app.id + ':', error.message);
+      }
+    }
+  }
+
   // ─── Seed inbox apps ───────────────────────────────────────────────────────
 
   /**
@@ -475,6 +507,7 @@ export class Launcher {
           permissions: manifest.permissions,
           requestedPermissions: manifest.permissions,
           fileTypes:    normalizeFileTypes(manifest.fileTypes),
+          fileTypeManifestVersion: 1,
           storageId:   createStorageId(),
           permissionDecisionVersion: 1,
           events:      manifest.events,
