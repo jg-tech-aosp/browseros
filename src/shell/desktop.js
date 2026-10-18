@@ -572,8 +572,8 @@ export class Desktop {
           else this._wm.notify('Rename failed: ' + res.error);
         }
       }},
-      { label: '🗑️ Delete', action: async () => {
-        if (!confirm(`Delete "${ic.label}"?`)) return;
+      { label: '🗑️ Move to Recycle Bin', action: async () => {
+        if (!confirm(`Move "${ic.label}" to the Recycle Bin?`)) return;
         if (ic.fspath) {
           const res = await this._fs.rm(ic.fspath);
           if (res.ok) {
