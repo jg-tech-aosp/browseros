@@ -498,12 +498,19 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     resetBtn.type = 'button';
     resetBtn.textContent = '🗑️ Reset Filesystem';
     resetBtn.style.cssText = 'background:rgba(200,50,50,0.15);border:1px solid rgba(200,50,50,0.3);color:#ff8888;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:13px;margin-top:16px';
-    resetBtn.onclick = function() {
+    resetBtn.onclick = async function() {
       if (!confirm('Factory reset BrowserOS? This permanently deletes your local profile, files, installed apps, app data, and settings. BrowserOS will restart with first-run setup.')) return;
-      var request = indexedDB.deleteDatabase('BrowserOS3Dev');
-      request.onsuccess = function() { location.reload(); };
-      request.onerror = function() { alert('BrowserOS could not reset its data. Check whether another BrowserOS tab is open.'); };
-      request.onblocked = function() { alert('Close other BrowserOS tabs, then try the factory reset again.'); };
+      resetBtn.disabled = true;
+      resetBtn.textContent = 'Resetting…';
+      try {
+        await db.clearAll();
+        location.reload();
+      } catch (error) {
+        console.error('[settings] Factory reset failed:', error);
+        alert('BrowserOS could not reset its data. Check the Developer / Debug console logs for details.');
+        resetBtn.disabled = false;
+        resetBtn.textContent = '🗑️ Reset Filesystem';
+      }
     };
     main.appendChild(resetBtn);
   }
