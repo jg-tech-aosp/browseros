@@ -52,6 +52,13 @@ const WM_STYLES = `
     overflow: hidden;
     user-select: none;
   }
+  #wm-snap-preview {
+    position:absolute; z-index:99999; pointer-events:none; border:2px solid var(--wm-accent);
+    border-radius:10px; background:color-mix(in srgb,var(--wm-accent) 22%,transparent);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.24); transition:all .12s ease;
+  }
+  #wm-snap-preview[hidden] { display:none; }
+  @media (prefers-reduced-motion:reduce) { #wm-snap-preview { transition:none; } }
 
   /* ── Windows ── */
   .wm-window {
@@ -87,6 +94,7 @@ const WM_STYLES = `
     box-shadow: var(--wm-shadow), 0 0 0 1px var(--wm-accent);
   }
   .wm-window.minimized { display: none; }
+  .wm-window.wm-snapped { border-radius: 0; }
   .wm-window.maximized {
     top: 0 !important; left: 0 !important;
     width: 100% !important;
@@ -359,7 +367,7 @@ export class WindowManager {
 
   _buildDOM() {
     document.body.innerHTML = `
-      <div id="wm-desktop"></div>
+      <div id="wm-desktop"><div id="wm-snap-preview" hidden></div></div>
       <div id="wm-toasts"></div>
       <div id="wm-app-switcher" hidden role="dialog" aria-modal="true" aria-label="Switch apps">
         <section class="wm-switcher-panel">
@@ -488,7 +496,7 @@ export class WindowManager {
     });
 
     // State
-    const state = { minimized: false, maximized: false, prevRect: null, animationEnd: null };
+    const state = { minimized: false, maximized: false, snap: null, restoreRect: null, prevRect: null, animationEnd: null };
     this._windows.set(instanceId, { el, iframe: null, state, onClose, appId, title: title || 'App', icon: icon || '🪟' });
 
     // Wire up controls
@@ -729,26 +737,132 @@ export class WindowManager {
     this._syncTaskbarButtons();
   }
 
+  _windowRect(win) {
+    return {
+      left: win.style.left, top: win.style.top,
+      width: win.style.width, height: win.style.height,
+    };
+  }
+
+  _setWindowRect(win, rect) {
+    if (!win || !rect) return;
+    win.style.left = rect.left;
+    win.style.top = rect.top;
+    win.style.width = rect.width;
+    win.style.height = rect.height;
+  }
+
+  _restoreWindowForDrag(w, event, desktop) {
+    const rect = w.state.maximized ? w.state.prevRect : w.state.restoreRect;
+    if (!rect) return;
+    const width = parseFloat(rect.width) || w.el.offsetWidth;
+    const height = parseFloat(rect.height) || w.el.offsetHeight;
+    const bounds = desktop.getBoundingClientRect();
+    w.state.maximized = false;
+    w.state.snap = null;
+    w.state.restoreRect = null;
+    w.state.prevRect = null;
+    w.el.classList.remove('maximized', 'wm-snapped');
+    w.el.style.width = width + 'px';
+    w.el.style.height = height + 'px';
+    w.el.style.left = Math.max(0, Math.min(desktop.clientWidth - width, event.clientX - bounds.left - width / 2)) + 'px';
+    w.el.style.top = Math.max(0, Math.min(desktop.clientHeight - 38, event.clientY - bounds.top - 19)) + 'px';
+    const maxButton = w.el.querySelector('.wm-btn-max');
+    if (maxButton) maxButton.title = 'Maximize';
+  }
+
+  _snapTargetAt(event, desktop) {
+    const bounds = desktop.getBoundingClientRect();
+    const x = event.clientX - bounds.left;
+    const y = event.clientY - bounds.top;
+    const width = desktop.clientWidth;
+    const height = desktop.clientHeight;
+    const corner = 48;
+    const edge = 22;
+    if (x <= corner && y <= corner) return 'top-left';
+    if (x >= width - corner && y <= corner) return 'top-right';
+    if (x <= corner && y >= height - corner) return 'bottom-left';
+    if (x >= width - corner && y >= height - corner) return 'bottom-right';
+    if (x <= edge) return 'left';
+    if (x >= width - edge) return 'right';
+    if (y <= edge) return 'maximize';
+    return null;
+  }
+
+  _snapRect(target, desktop) {
+    const width = desktop.clientWidth;
+    const height = desktop.clientHeight;
+    const halfWidth = Math.floor(width / 2);
+    const halfHeight = Math.floor(height / 2);
+    const rects = {
+      left: { left: 0, top: 0, width: halfWidth, height },
+      right: { left: width - halfWidth, top: 0, width: halfWidth, height },
+      'top-left': { left: 0, top: 0, width: halfWidth, height: halfHeight },
+      'top-right': { left: width - halfWidth, top: 0, width: halfWidth, height: halfHeight },
+      'bottom-left': { left: 0, top: height - halfHeight, width: halfWidth, height: halfHeight },
+      'bottom-right': { left: width - halfWidth, top: height - halfHeight, width: halfWidth, height: halfHeight },
+    };
+    return target === 'maximize'
+      ? { left: 0, top: 0, width, height }
+      : rects[target];
+  }
+
+  _showSnapPreview(target, desktop) {
+    const preview = document.getElementById('wm-snap-preview');
+    const rect = target && this._snapRect(target, desktop);
+    if (!preview || !rect) {
+      if (preview) preview.hidden = true;
+      return;
+    }
+    preview.hidden = false;
+    preview.style.left = rect.left + 'px';
+    preview.style.top = rect.top + 'px';
+    preview.style.width = rect.width + 'px';
+    preview.style.height = rect.height + 'px';
+  }
+
+  _applySnap(w, target, desktop) {
+    const rect = this._snapRect(target, desktop);
+    if (!w || !rect) return;
+    if (w.state.maximized) {
+      w.state.restoreRect = w.state.prevRect || this._windowRect(w.el);
+      w.state.prevRect = null;
+    } else if (!w.state.snap) {
+      w.state.restoreRect = this._windowRect(w.el);
+    }
+    w.state.maximized = false;
+    w.state.snap = target;
+    w.el.classList.remove('maximized');
+    w.el.classList.add('wm-snapped');
+    w.el.style.left = rect.left + 'px';
+    w.el.style.top = rect.top + 'px';
+    w.el.style.width = rect.width + 'px';
+    w.el.style.height = rect.height + 'px';
+    const maxButton = w.el.querySelector('.wm-btn-max');
+    if (maxButton) maxButton.title = 'Maximize';
+  }
+
   maximize(instanceId) {
     const w = this._windows.get(instanceId);
     if (!w) return;
     if (!w.state.maximized) {
-      w.state.prevRect = {
-        left: w.el.style.left, top: w.el.style.top,
-        width: w.el.style.width, height: w.el.style.height,
-      };
+      w.state.prevRect = w.state.snap
+        ? (w.state.restoreRect || this._windowRect(w.el))
+        : this._windowRect(w.el);
+      w.state.snap = null;
+      w.state.restoreRect = null;
       w.state.maximized = true;
+      w.el.classList.remove('wm-snapped');
       w.el.classList.add('maximized');
+      const button = w.el.querySelector('.wm-btn-max');
+      if (button) button.title = 'Restore';
     } else {
       w.state.maximized = false;
       w.el.classList.remove('maximized');
-      const r = w.state.prevRect;
-      if (r) {
-        w.el.style.left   = r.left;
-        w.el.style.top    = r.top;
-        w.el.style.width  = r.width;
-        w.el.style.height = r.height;
-      }
+      this._setWindowRect(w.el, w.state.prevRect);
+      w.state.prevRect = null;
+      const button = w.el.querySelector('.wm-btn-max');
+      if (button) button.title = 'Maximize';
     }
   }
 
@@ -1001,9 +1115,10 @@ export class WindowManager {
     handle.addEventListener('mousedown', e => {
       if (e.target.closest('.wm-titlebar-btns')) return;
       const w = this._windows.get(instanceId);
-      if (w?.state.maximized) return;
-      stopSlide();
       const desktop = document.getElementById('wm-desktop');
+      if (!w || !desktop) return;
+      stopSlide();
+      if (w.state.maximized || w.state.snap) this._restoreWindowForDrag(w, e, desktop);
       const iceMode = this._settings?.get('iceMode') === true &&
         this._settings?.get('reduceMotion') !== true;
       win.classList.add('wm-window-dragging');
@@ -1011,10 +1126,12 @@ export class WindowManager {
       const sx = e.clientX, sy = e.clientY;
       const sl = parseInt(win.style.left) || 0;
       const st = parseInt(win.style.top)  || 0;
-      const maxX = Math.max(0, (desktop?.clientWidth || window.innerWidth) - win.offsetWidth);
-      const maxY = Math.max(0, (desktop?.clientHeight || window.innerHeight) - win.offsetHeight);
+      const maxX = Math.max(0, desktop.clientWidth - win.offsetWidth);
+      const maxY = Math.max(0, desktop.clientHeight - win.offsetHeight);
       let lastX = sx, lastY = sy, lastTime = performance.now();
       let velocityX = 0, velocityY = 0;
+      let snapTarget = null;
+      this._showSnapPreview(null, desktop);
 
       const onMove = e2 => {
         const now = performance.now();
@@ -1031,12 +1148,18 @@ export class WindowManager {
         const nextTop = st + e2.clientY - sy;
         win.style.left = (iceMode ? Math.max(0, Math.min(maxX, nextLeft)) : Math.max(0, nextLeft)) + 'px';
         win.style.top = (iceMode ? Math.max(0, Math.min(maxY, nextTop)) : Math.max(0, nextTop)) + 'px';
+        snapTarget = this._snapTargetAt(e2, desktop);
+        this._showSnapPreview(snapTarget, desktop);
       };
       const onUp = () => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         win.classList.remove('wm-window-dragging', 'wm-window-ice-dragging');
-        if (iceMode && this._settings?.get('iceMode') === true &&
+        this._showSnapPreview(null, desktop);
+        if (snapTarget) {
+          if (snapTarget === 'maximize') this.maximize(instanceId);
+          else this._applySnap(w, snapTarget, desktop);
+        } else if (iceMode && this._settings?.get('iceMode') === true &&
             this._settings?.get('reduceMotion') !== true) {
           const releaseDamping = Math.exp(-0.0022 * Math.max(0, performance.now() - lastTime));
           startSlide(velocityX * releaseDamping * 1.15, velocityY * releaseDamping * 1.15);
