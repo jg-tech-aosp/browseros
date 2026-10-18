@@ -233,6 +233,33 @@ const WM_STYLES = `
   @keyframes bos-flyout-in { from { opacity:0; transform:translateY(10px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
   @keyframes bos-flyout-out { to { opacity:0; transform:translateY(8px) scale(.98); } }
 
+  /* ── App switcher ── */
+  #wm-app-switcher {
+    position:fixed; inset:0; z-index:100000; display:flex; align-items:center; justify-content:center;
+    padding:24px; background:rgba(5,8,18,.42); backdrop-filter:blur(8px);
+  }
+  #wm-app-switcher[hidden] { display:none; }
+  #wm-app-switcher .wm-switcher-panel {
+    width:min(640px,100%); max-height:min(70vh,560px); overflow:auto; padding:16px;
+    border:1px solid var(--wm-panel-border); border-radius:14px; background:var(--wm-panel-bg);
+    color:var(--wm-text); box-shadow:0 20px 70px rgba(0,0,0,.45);
+  }
+  #wm-app-switcher h2 { margin:2px 4px 12px; font-size:14px; font-weight:600; }
+  #wm-app-switcher .wm-switcher-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; }
+  #wm-app-switcher .wm-switcher-item {
+    min-width:0; min-height:88px; padding:12px; border:1px solid var(--wm-control-border);
+    border-radius:10px; background:var(--wm-control-bg); color:inherit; font:inherit;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; cursor:pointer;
+  }
+  #wm-app-switcher .wm-switcher-item:hover, #wm-app-switcher .wm-switcher-item.selected {
+    border-color:var(--wm-accent); background:var(--wm-control-hover); outline:2px solid color-mix(in srgb,var(--wm-accent) 55%,transparent);
+  }
+  #wm-app-switcher .wm-switcher-icon { width:30px; height:30px; display:grid; place-items:center; font-size:25px; }
+  #wm-app-switcher .wm-switcher-icon img { max-width:30px; max-height:30px; object-fit:contain; }
+  #wm-app-switcher .wm-switcher-title { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
+  #wm-app-switcher .wm-switcher-hint { margin:12px 4px 0; color:var(--wm-text-dim); font-size:11px; text-align:center; }
+  @media (prefers-reduced-motion:reduce) { #wm-app-switcher * { animation:none!important; transition:none!important; } }
+
   /* ── Toast notifications ── */
   #wm-toasts {}
     position: fixed;
@@ -303,6 +330,10 @@ export class WindowManager {
     this._windows  = new Map();   // instanceId → { el, iframe, opts, state }
     this._zIndex   = 100;
     this._activeId = null;
+    this._focusOrder = [];
+    this._switcherOverlay = null;
+    this._switcherWindows = [];
+    this._switcherIndex = 0;
     this._systemApps = new Map(); // appId → mount function (for native apps)
   }
 
@@ -311,6 +342,7 @@ export class WindowManager {
   boot() {
     this._injectStyles();
     this._buildDOM();
+    this._bindAppSwitcher();
     this._startClock();
     console.log('[wm] Booted');
   }
@@ -328,6 +360,13 @@ export class WindowManager {
     document.body.innerHTML = `
       <div id="wm-desktop"></div>
       <div id="wm-toasts"></div>
+      <div id="wm-app-switcher" hidden role="dialog" aria-modal="true" aria-label="Switch apps">
+        <section class="wm-switcher-panel">
+          <h2>Switch apps</h2>
+          <div class="wm-switcher-list"></div>
+          <div class="wm-switcher-hint">Tab or arrow keys to move · Enter to switch · Esc to cancel</div>
+        </section>
+      </div>
       <div id="wm-taskbar">
         <button id="wm-start-btn" title="Start" aria-label="Open Start menu"><img class="wm-start-logo" src="${new URL('../../assets/browseros-logo-white-black.png', import.meta.url).href}" alt=""></button>
         <div id="wm-taskbar-apps"></div>
@@ -474,6 +513,7 @@ export class WindowManager {
     const w = this._windows.get(instanceId);
     if (!w) return;
     this._activeId = instanceId;
+    this._focusOrder = [instanceId, ...this._focusOrder.filter(id => id !== instanceId && this._windows.has(id))];
     w.el.style.zIndex = ++this._zIndex;
 
     // Update focused class
@@ -482,6 +522,124 @@ export class WindowManager {
     });
 
     this._syncTaskbarButtons();
+  }
+
+  _bindAppSwitcher() {
+    this._switcherOverlay = document.getElementById('wm-app-switcher');
+    document.addEventListener('keydown', event => {
+      if (this._switcherOverlay && !this._switcherOverlay.hidden) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          this._closeAppSwitcher(false);
+        } else if (event.key === 'Enter') {
+          event.preventDefault();
+          this._closeAppSwitcher(true);
+        } else if (event.key === 'Tab' || event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+          event.preventDefault();
+          this._stepAppSwitcher(1);
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          this._stepAppSwitcher(-1);
+        }
+        return;
+      }
+      if (event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey && event.code === 'Space') {
+        if (this._isEditableTarget(event.target)) return;
+        event.preventDefault();
+        this.showAppSwitcher();
+      }
+    });
+
+    this._switcherOverlay?.addEventListener('click', event => {
+      if (event.target === this._switcherOverlay) this._closeAppSwitcher(false);
+    });
+    this._switcherOverlay?.querySelector('.wm-switcher-list')?.addEventListener('click', event => {
+      const item = event.target.closest('[data-instance-id]');
+      if (!item) return;
+      this._switcherIndex = this._switcherWindows.indexOf(item.dataset.instanceId);
+      this._closeAppSwitcher(true);
+    });
+
+    // Sandboxed .beep frames have separate documents. Accept only the switcher
+    // signal, and only from one of our own registered app iframes.
+    window.addEventListener('message', event => {
+      if (event.data?.type !== 'bos:appSwitcher') return;
+      const ownedFrame = [...this._windows.values()].some(win => win.iframe?.contentWindow === event.source);
+      if (ownedFrame) this.showAppSwitcher();
+    });
+  }
+
+  _isEditableTarget(target) {
+    return !!target?.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="textbox"]');
+  }
+
+  showAppSwitcher() {
+    const overlay = this._switcherOverlay;
+    if (!overlay) return;
+    const ids = [...this._focusOrder.filter(id => this._windows.has(id)),
+      ...[...this._windows.keys()].filter(id => !this._focusOrder.includes(id))];
+    if (!ids.length) return;
+    this._switcherWindows = ids;
+    const activeIndex = ids.indexOf(this._activeId);
+    this._switcherIndex = ids.length > 1 ? (activeIndex + 1 + ids.length) % ids.length : 0;
+    overlay.hidden = false;
+    this._renderAppSwitcher();
+    overlay.querySelector('.wm-switcher-item.selected')?.focus();
+  }
+
+  _renderAppSwitcher() {
+    const list = this._switcherOverlay?.querySelector('.wm-switcher-list');
+    if (!list) return;
+    list.replaceChildren();
+    this._switcherWindows.forEach((id, index) => {
+      const win = this._windows.get(id);
+      if (!win) return;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'wm-switcher-item' + (index === this._switcherIndex ? ' selected' : '');
+      button.dataset.instanceId = id;
+      button.setAttribute('aria-pressed', String(index === this._switcherIndex));
+      const icon = document.createElement('span');
+      icon.className = 'wm-switcher-icon';
+      if (typeof win.icon === 'string' && win.icon.startsWith('data:image/')) {
+        const image = document.createElement('img');
+        image.src = win.icon;
+        image.alt = '';
+        icon.appendChild(image);
+      } else {
+        icon.textContent = win.icon || '🪟';
+      }
+      const title = document.createElement('span');
+      title.className = 'wm-switcher-title';
+      title.textContent = win.title || 'App';
+      button.append(icon, title);
+      button.addEventListener('mouseenter', () => {
+        this._switcherIndex = index;
+        this._renderAppSwitcher();
+      });
+      list.appendChild(button);
+    });
+  }
+
+  _stepAppSwitcher(direction) {
+    const count = this._switcherWindows.length;
+    if (!count) return;
+    this._switcherIndex = (this._switcherIndex + direction + count) % count;
+    this._renderAppSwitcher();
+    this._switcherOverlay.querySelector('.wm-switcher-item.selected')?.focus();
+  }
+
+  _closeAppSwitcher(activate) {
+    if (!this._switcherOverlay || this._switcherOverlay.hidden) return;
+    const id = this._switcherWindows[this._switcherIndex];
+    this._switcherOverlay.hidden = true;
+    this._switcherWindows = [];
+    if (activate && this._windows.has(id)) {
+      const win = this._windows.get(id);
+      if (win.state.minimized) this.minimize(id);
+      this.focus(id);
+      win.iframe?.focus();
+    }
   }
 
   _syncTaskbarButtons() {
@@ -585,6 +743,8 @@ export class WindowManager {
     const appId = w.appId;
     w.el.remove();
     this._windows.delete(instanceId);
+    this._focusOrder = this._focusOrder.filter(id => id !== instanceId);
+    this._switcherWindows = this._switcherWindows.filter(id => id !== instanceId);
     // Remove taskbar button
     const btn = document.querySelector(`.wm-taskbar-btn[data-instance-id="${instanceId}"]`);
     if (btn) btn.remove();
