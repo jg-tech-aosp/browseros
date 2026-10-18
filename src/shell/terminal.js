@@ -304,7 +304,7 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings, db }) {
         },
 
         version() {
-          print('BrowserOS 3 Dev');
+          print('BrowserOS Terminal v3.0');
           print('BOS API: 2.0');
           print('Engine: HTML5 / ES Modules / IndexedDB');
         },
@@ -509,7 +509,7 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings, db }) {
 
       // ── Boot message ──────────────────────────────────────────────────────────
 
-      print('BrowserOS Terminal — BrowserOS 3 Dev', '#66aaff');
+      print('BrowserOS Terminal v3.0', '#66aaff');
       print('Type "help" for commands. Tab completes paths; ↑/↓ browse session history; Ctrl+L clears output.', '#8888aa');
       print('');
       updatePrompt();
