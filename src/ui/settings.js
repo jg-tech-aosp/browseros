@@ -16,6 +16,7 @@ const DEFAULTS = {
   showClock:  true,
   interfaceScale: 100,
   reduceMotion: false,
+  debugLayoutOutlines: false,
   pinnedApps: ['filemanager', 'texteditor', 'terminal', 'calculator', 'browser', 'paint', 'appstore', 'musicplayer', 'markdownviewer', 'sysmonitor'],
   userProfile: { name: 'User', avatar: null },
 };
@@ -33,6 +34,7 @@ export class Settings {
     // Merge saved over defaults
     this._cache = { ...DEFAULTS, ...saved };
     this.applyAccessibility();
+    this.applyDeveloperSettings();
     console.log('[settings] Loaded');
   }
 
@@ -70,12 +72,24 @@ export class Settings {
     }
   }
 
+  applyDeveloperSettings() {
+    document.documentElement.classList.toggle('bos-debug-layout', this._cache.debugLayoutOutlines === true);
+    let style = document.getElementById('bos-debug-layout-styles');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'bos-debug-layout-styles';
+      style.textContent = 'html.bos-debug-layout * { outline: 1px solid rgba(255, 0, 128, .28) !important; }';
+      document.head.appendChild(style);
+    }
+  }
+
   // ─── Write ─────────────────────────────────────────────────────────────────
 
   async set(key, value) {
     this._cache[key] = value;
     await this._db.settings.set(key, value);
     this.applyAccessibility();
+    this.applyDeveloperSettings();
     // Fire onChange with new theme
     const theme = this.getTheme();
     this._handlers.forEach(fn => fn(theme, key, value));
@@ -87,6 +101,7 @@ export class Settings {
       await this._db.settings.set(key, value);
     }
     this.applyAccessibility();
+    this.applyDeveloperSettings();
     const theme = this.getTheme();
     this._handlers.forEach(fn => fn(theme, null, null));
   }
@@ -97,6 +112,7 @@ export class Settings {
     }
     this._cache = { ...DEFAULTS };
     this.applyAccessibility();
+    this.applyDeveloperSettings();
     const theme = this.getTheme();
     this._handlers.forEach(fn => fn(theme, null, null));
   }
