@@ -191,6 +191,46 @@ export function registerClockApp({ wm }) {
       let timerDisplay = null;
       let timerStartButton = null;
       let timerCancelButton = null;
+      let audioContext = null;
+
+      function unlockAudio() {
+        const AudioContextType = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextType) return null;
+        try {
+          if (!audioContext) audioContext = new AudioContextType();
+          if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+          return audioContext;
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function playTimerBeep() {
+        const context = unlockAudio();
+        if (!context) return;
+        const play = () => {
+          if (destroyed || context.state !== 'running') return;
+          const oscillator = context.createOscillator();
+          const gain = context.createGain();
+          const startAt = context.currentTime + 0.03;
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(880, startAt);
+          gain.gain.setValueAtTime(0, startAt);
+          [0, 0.6, 1.2, 1.8].forEach(offset => {
+            const start = startAt + offset;
+            gain.gain.setValueAtTime(0, start);
+            gain.gain.linearRampToValueAtTime(0.18, start + 0.015);
+            gain.gain.setValueAtTime(0.18, start + 0.16);
+            gain.gain.linearRampToValueAtTime(0, start + 0.2);
+          });
+          oscillator.connect(gain);
+          gain.connect(context.destination);
+          oscillator.start(startAt);
+          oscillator.stop(startAt + 2.04);
+        };
+        if (context.state === 'running') play();
+        else context.resume().then(play).catch(() => {});
+      }
 
       function setTab(tab) {
         active = tab;
@@ -310,6 +350,7 @@ export function registerClockApp({ wm }) {
             }
             const total = mins * 60 + secs;
             if (!total) { wm.notify('Set a timer longer than zero seconds'); return; }
+            unlockAudio();
             timerRemaining = total * 1000;
             timerEndsAt = Date.now() + timerRemaining;
             timerRunning = true;
@@ -341,6 +382,7 @@ export function registerClockApp({ wm }) {
           if (timerRemaining === 0) {
             timerRunning = false;
             wm.notify('Timer finished');
+            playTimerBeep();
             if (timerStartButton) {
               timerStartButton.disabled = false;
               timerStartButton.textContent = 'Start timer';
@@ -354,7 +396,11 @@ export function registerClockApp({ wm }) {
         }
       }, 100);
       setTab('clock');
-      return () => { destroyed = true; clearInterval(tick); };
+      return () => {
+        destroyed = true;
+        clearInterval(tick);
+        if (audioContext && audioContext.state !== 'closed') audioContext.close().catch(() => {});
+      };
     }
   });
 }
