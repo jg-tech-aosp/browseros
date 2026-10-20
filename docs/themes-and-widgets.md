@@ -72,7 +72,12 @@ shadow, and an opaque shade mixed from the current palette. The content area
 keeps its solid app background. Navigation buttons follow the accent and retain
 visible keyboard focus. File Manager's toolbar uses the same rounded controls.
 The layout narrows its sidebar in small windows and scrolls each pane separately.
-These surfaces add no backdrop blur, magnification, or continuous animation.
+The islands stay opaque. Selected navigation buttons have a soft accent tint,
+reflective highlight, border and shadow, plus a small 8-pixel backdrop blur when
+Clear Ice is enabled. Pressing gently compresses a button; selection fades
+between items. File Manager keeps navigation nodes alive across folder changes
+so transitions and keyboard focus persist. Reduced motion removes the press
+transform. No magnification or continuous animation is added inside these apps.
 
 ## Desktop widgets
 

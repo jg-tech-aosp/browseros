@@ -1,4 +1,4 @@
-/** Shared opaque surfaces for native apps. No backdrop filters or refraction. */
+/** Opaque native app islands, with small glass layers on selected navigation. */
 const STYLES = `
   .bos-native-app {
     --bos-island-bg:var(--wm-titlebar);
@@ -18,18 +18,32 @@ const STYLES = `
   }
   .bos-native-settings > .bos-native-sidebar { flex-basis:188px; width:188px; }
   .bos-native-nav-item {
+    position:relative; isolation:isolate;
     display:block; width:100%; min-height:38px; margin:0 0 4px;
     padding:9px 10px; border:1px solid transparent; border-radius:11px;
     background:transparent; color:var(--wm-text); text-align:left;
     font:inherit; font-size:13px; line-height:1.35; cursor:pointer;
-    overflow-wrap:anywhere; transition:background-color .12s,border-color .12s;
+    overflow-wrap:anywhere;
+    box-shadow:inset 0 1px 0 transparent,inset 0 -1px 0 transparent,0 2px 5px transparent;
+    transition:background-color .2s ease,border-color .2s ease,box-shadow .2s ease,transform .16s cubic-bezier(.2,.75,.25,1);
+  }
+  .bos-native-nav-item::before {
+    content:''; position:absolute; inset:0; border-radius:inherit; z-index:-1;
+    pointer-events:none; opacity:0;
+    background:var(--wm-ice-sheen,linear-gradient(135deg,rgba(255,255,255,.18),transparent 65%));
+    transition:opacity .2s ease;
   }
   .bos-native-nav-item:hover { background:var(--wm-hover); }
+  .bos-native-nav-item:active { transform:scale(.975); }
   .bos-native-nav-item[aria-current="page"] {
     background:var(--wm-hover);
     background:color-mix(in srgb,var(--wm-accent) 16%,var(--bos-island-bg));
-    border-color:color-mix(in srgb,var(--wm-accent) 24%,transparent);
-    box-shadow:inset 3px 0 0 var(--wm-accent); font-weight:600;
+    border-color:color-mix(in srgb,var(--wm-accent) 28%,var(--wm-control-border));
+    box-shadow:var(--wm-ice-control-shadow,inset 0 1px 0 rgba(255,255,255,.2),inset 0 -1px 0 rgba(0,20,40,.12),0 2px 5px rgba(0,10,25,.08));
+  }
+  .bos-native-nav-item[aria-current="page"]::before { opacity:1; }
+  .bos-clear-ice .bos-native-nav-item[aria-current="page"]::before {
+    -webkit-backdrop-filter:blur(8px) saturate(125%); backdrop-filter:blur(8px) saturate(125%);
   }
   .bos-native-settings-main { flex:1; min-width:0; min-height:0; overflow:auto; padding:10px 10px 20px; }
   .bos-native-file-content { flex:1; min-width:0; min-height:0; overflow:auto; display:flex; flex-direction:column; position:relative; border-radius:12px; }
@@ -60,6 +74,12 @@ const STYLES = `
   @media (forced-colors:active) {
     .bos-native-app .bos-native-sidebar { background:Canvas; border-color:CanvasText; box-shadow:none; }
     .bos-native-nav-item[aria-current="page"] { background:Highlight; color:HighlightText; border-color:Highlight; box-shadow:none; }
+    .bos-native-nav-item::before { display:none; }
+  }
+  .bos-reduce-motion .bos-native-nav-item:active { transform:none; }
+  @media (prefers-reduced-motion:reduce) {
+    .bos-native-nav-item,.bos-native-nav-item::before { transition:none; }
+    .bos-native-nav-item:active { transform:none; }
   }
 `;
 

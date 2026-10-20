@@ -81,16 +81,20 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
       ];
 
       function renderSidebar() {
-        sidebar.innerHTML = '';
-        SIDEBAR_ITEMS.forEach(item => {
+        // Keep navigation nodes alive so selection can fade between locations
+        // and keyboard focus survives a folder refresh.
+        if (!sidebar.children.length) SIDEBAR_ITEMS.forEach(item => {
           const el = document.createElement('button');
           el.type = 'button';
           el.className = 'bos-fm-sidebar-item bos-native-nav-item';
           el.dataset.path = item.path;
-          if (cwd === item.path) el.setAttribute('aria-current', 'page');
           el.textContent = item.label;
           el.onclick = () => navigate(item.path);
           sidebar.appendChild(el);
+        });
+        sidebar.querySelectorAll('.bos-fm-sidebar-item').forEach(button => {
+          if (cwd === button.dataset.path) button.setAttribute('aria-current', 'page');
+          else button.removeAttribute('aria-current');
         });
       }
 
