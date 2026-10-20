@@ -11,6 +11,7 @@
 // ─── CSS injected once into the host document ─────────────────────────────────
 
 import { themeVariables } from '../ui/themes.js';
+import { syncClearIce } from '../ui/clear-ice.js';
 
 const WM_STYLES = `
   :root {
@@ -248,7 +249,7 @@ const WM_STYLES = `
   /* ── App switcher ── */
   #wm-app-switcher {
     position:fixed; inset:0; z-index:100000; display:flex; align-items:center; justify-content:center;
-    padding:24px; background:rgba(5,8,18,.42); backdrop-filter:blur(8px);
+    padding:24px; background:rgba(5,8,18,.42);
   }
   #wm-app-switcher[hidden] { display:none; }
   #wm-app-switcher .wm-switcher-panel {
@@ -273,7 +274,7 @@ const WM_STYLES = `
   @media (prefers-reduced-motion:reduce) { #wm-app-switcher * { animation:none!important; transition:none!important; } }
 
   /* ── Toast notifications ── */
-  #wm-toasts {}
+  #wm-toasts {
     position: fixed;
     bottom: calc(var(--wm-taskbar-h) + 12px);
     right: 16px;
@@ -1288,7 +1289,14 @@ export class WindowManager {
 
   // ─── Theme ─────────────────────────────────────────────────────────────────
 
-  applyTheme({ accent, font, darkMode, wallpaper, transparency, themeId }) {
+  applyGlassPreferences(theme) {
+    const effective = syncClearIce(theme);
+    for (const [property, value] of Object.entries(themeVariables(effective))) {
+      document.documentElement.style.setProperty(property, value);
+    }
+  }
+
+  applyTheme({ accent, font, darkMode, wallpaper, transparency, themeId, clearIce, glassBlur, glassTint }) {
     const r = document.documentElement;
     if (accent)    r.style.setProperty('--wm-accent', accent);
     if (font)      r.style.setProperty('--wm-font',   font);
@@ -1316,9 +1324,7 @@ export class WindowManager {
       }
     }
     if (darkMode !== undefined) {
-      for (const [property, value] of Object.entries(themeVariables({ themeId, darkMode, transparency }))) {
-        r.style.setProperty(property, value);
-      }
+      this.applyGlassPreferences({ themeId, darkMode, transparency, clearIce, glassBlur, glassTint });
       r.style.colorScheme = darkMode ? 'dark' : 'light';
     }
   }

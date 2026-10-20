@@ -506,7 +506,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
         menu.id = 'bos-ctx-menu';
         menu.style.cssText = 'position:fixed;left:' + Math.min(x, window.innerWidth - 200) + 'px;' +
           'top:' + Math.min(y, window.innerHeight - items.length * 34) + 'px;' +
-          'background:rgba(20,20,40,0.97);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.12);' +
+          'background:var(--wm-panel-bg);backdrop-filter:var(--wm-backdrop-filter);border:1px solid var(--wm-panel-border);' +
           'border-radius:8px;padding:4px;z-index:99999;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,0.5)';
         items.forEach(item => {
           if (item === 'sep') {

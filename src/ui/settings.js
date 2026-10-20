@@ -17,6 +17,9 @@ const DEFAULTS = {
   font:       "'Segoe UI', system-ui, sans-serif",
   darkMode:   true,
   transparency: true,
+  clearIce: true,
+  glassBlur: 16,
+  glassTint: 44,
   showClock:  true,
   interfaceScale: 100,
   reduceMotion: false,
@@ -59,6 +62,9 @@ export class Settings {
       font:      this._cache.font,
       darkMode:  this._cache.darkMode,
       transparency: this._cache.transparency,
+      clearIce: this._cache.clearIce,
+      glassBlur: this._cache.glassBlur,
+      glassTint: this._cache.glassTint,
     };
   }
 

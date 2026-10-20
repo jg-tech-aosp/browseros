@@ -13,6 +13,7 @@
  */
 import { THEMES, WALLPAPERS, resolveWallpaper } from './themes.js';
 import { availableWidgets, setWidgetEnabled } from '../shell/widgets.js';
+import { boundedNumber } from './clear-ice.js';
 
 const DEBUG_LOG_LIMIT = 500;
 const DEBUG_LOGS = [];
@@ -105,12 +106,15 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
 
       // Activate first section
       (sidebar.querySelector('[data-section="' + (SECTIONS.some(section => section.id === args.section) ? args.section : 'appearance') + '"]') || sidebar.firstChild).click();
+      return function() { main._iceCleanup?.(); wm.applyGlassPreferences(settings.getTheme()); };
     }
   });
 
   // ── Section renderers ────────────────────────────────────────────────────────
 
   function renderSection(id, main) {
+    main._iceCleanup?.(); main._iceCleanup = null;
+    wm.applyGlassPreferences(settings.getTheme());
     main.innerHTML = '';
 
     if (id === 'appearance') renderAppearance(main);
@@ -167,6 +171,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
   // ── Appearance ───────────────────────────────────────────────────────────────
 
   function renderAppearance(main) {
+    main._iceCleanup?.(); main._iceCleanup = null;
     main.appendChild(h2('Appearance'));
 
     var theme = settings.getAll();
@@ -384,11 +389,95 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     ));
 
     // Transparency
-    main.appendChild(row('Transparency', 'Frosted glass effect on taskbar and menus',
+    main.appendChild(row('Transparency', 'Allow translucent window frames, menus, and widgets',
       toggle(settings.get('transparency') !== false, async function(val) {
         await settings.set('transparency', val);
+        refreshGlassControls();
       })
     ));
+    var refreshGlassControls = renderClearIce(main);
+  }
+
+  function renderClearIce(main) {
+    var group = document.createElement('section');
+    group.setAttribute('aria-label', 'Clear Ice appearance');
+    var switchButton = document.createElement('button');
+    switchButton.type = 'button';
+    switchButton.id = 'bos-clear-ice-toggle';
+    switchButton.setAttribute('role', 'switch');
+    switchButton.setAttribute('aria-label', 'Clear Ice');
+    switchButton.style.cssText = 'flex-shrink:0;margin-left:12px;padding:7px 12px;border-radius:18px;border:1px solid var(--wm-control-border);background:var(--wm-control-bg);color:var(--wm-text);cursor:pointer;font:inherit';
+    group.appendChild(row('Clear Ice', 'Reflective rims, soft highlights, and translucent depth', switchButton));
+    var preview = document.createElement('div');
+    preview.className = 'bos-ice-demo-stage';
+    preview.setAttribute('aria-label', 'Live Clear Ice preview');
+    var surface = document.createElement('div');
+    surface.className = 'bos-ice-demo-surface';
+    var name = document.createElement('strong'); name.textContent = 'Clear Ice';
+    var detail = document.createElement('span'); detail.textContent = 'Windows, menus, and widgets';
+    detail.style.cssText = 'font-size:12px;color:var(--wm-text-dim)';
+    surface.append(name, detail); preview.appendChild(surface); group.appendChild(preview);
+    var controls = document.createElement('div');
+    var ranges = [];
+    var blur = makeRange('Blur', 'glassBlur', 0, 40, 16, 'Clearer', 'Blurrier', ' px');
+    var tint = makeRange('Surface tint', 'glassTint', 0, 100, 44, 'More transparent', 'More solid', '%');
+    group.appendChild(controls); main.appendChild(group);
+
+    function previewPreferences() {
+      wm.applyGlassPreferences({ ...settings.getTheme(), glassBlur: blur.valueAsNumber, glassTint: tint.valueAsNumber });
+    }
+    function makeRange(label, key, min, max, fallback, startLabel, endLabel, unit) {
+      var wrap = document.createElement('div'); wrap.style.cssText = 'padding:10px 0';
+      var heading = document.createElement('div'); heading.style.cssText = 'display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;color:var(--wm-text)';
+      var title = document.createElement('label'); title.textContent = label;
+      var output = document.createElement('output'); output.style.color = 'var(--wm-text-dim)';
+      var input = document.createElement('input');
+      input.type = 'range'; input.className = 'bos-ice-range'; input.id = 'bos-' + key;
+      input.min = min; input.max = max; input.step = 1;
+      input.value = boundedNumber(settings.get(key), fallback, min, max);
+      title.htmlFor = input.id;
+      output.setAttribute('for', input.id);
+      var showValue = function() { output.value = input.value + unit; input.setAttribute('aria-valuetext', input.value + (unit === '%' ? ' percent' : ' pixels')); };
+      showValue();
+      ranges.push({ input: input, key: key, fallback: fallback, min: min, max: max, showValue: showValue });
+      input.oninput = function() { showValue(); previewPreferences(); };
+      input.onchange = async function() {
+        try { await settings.set(key, input.valueAsNumber); }
+        catch (_) { wm.notify('Could not save Clear Ice setting'); }
+      };
+      var ends = document.createElement('div'); ends.style.cssText = 'display:flex;justify-content:space-between;margin-top:5px;font-size:11px;color:var(--wm-text-dim)';
+      var left = document.createElement('span'); left.textContent = startLabel;
+      var right = document.createElement('span'); right.textContent = endLabel;
+      ends.append(left, right); heading.append(title, output); wrap.append(heading, input, ends); controls.appendChild(wrap);
+      return input;
+    }
+    function refresh() {
+      var transparent = settings.get('transparency') !== false;
+      var enabled = settings.get('clearIce') !== false;
+      switchButton.disabled = !transparent;
+      switchButton.textContent = enabled ? 'On' : 'Off';
+      switchButton.setAttribute('aria-checked', String(enabled));
+      switchButton.style.opacity = transparent ? '1' : '.5';
+      blur.disabled = tint.disabled = !transparent || !enabled;
+      controls.classList.toggle('bos-ice-disabled', !transparent || !enabled);
+      ranges.forEach(function(range) {
+        range.input.value = boundedNumber(settings.get(range.key), range.fallback, range.min, range.max);
+        range.showValue();
+      });
+    }
+    switchButton.onclick = async function() {
+      switchButton.disabled = true;
+      try { await settings.set('clearIce', settings.get('clearIce') === false); }
+      catch (_) { wm.notify('Could not save Clear Ice setting'); }
+      finally { refresh(); }
+    };
+    refresh();
+    var onSetting = function(_theme, key) {
+      if (key == null || ['transparency', 'clearIce', 'glassBlur', 'glassTint'].includes(key)) refresh();
+    };
+    settings.onChange(onSetting);
+    main._iceCleanup = function() { settings.offChange(onSetting); };
+    return refresh;
   }
 
   // ── Display ──────────────────────────────────────────────────────────────────

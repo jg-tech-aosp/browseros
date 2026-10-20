@@ -607,8 +607,8 @@ export class Desktop {
     menu.style.cssText = `
       position:fixed; left:${Math.min(x, window.innerWidth-200)}px;
       top:${Math.min(y, window.innerHeight - items.length*36)}px;
-      background:rgba(20,20,40,0.97); backdrop-filter:blur(20px);
-      border:1px solid rgba(255,255,255,0.12); border-radius:8px;
+      background:var(--wm-panel-bg); backdrop-filter:var(--wm-backdrop-filter);
+      border:1px solid var(--wm-panel-border); border-radius:8px;
       padding:4px; z-index:99999; min-width:180px;
       box-shadow:0 8px 32px rgba(0,0,0,0.5);
     `;
@@ -622,7 +622,7 @@ export class Desktop {
         const el = document.createElement('div');
         el.style.cssText = `
           padding:7px 14px; border-radius:4px; font-size:13px;
-          cursor:pointer; color:#e0e0ff; transition:background 0.1s;
+          cursor:pointer; color:var(--wm-text); transition:background 0.1s;
         `;
         el.textContent = item.label;
         el.onmouseenter = () => el.style.background = 'rgba(255,255,255,0.1)';

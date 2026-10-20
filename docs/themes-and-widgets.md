@@ -11,6 +11,35 @@ The wallpaper is stored as `builtin:clear-ice` in preferences and resolved
 relative to the theme module, so saved settings do not embed a deployment URL.
 Custom pictures still come from files already in the BrowserOS filesystem.
 
+## Clear Ice material
+
+In **Settings → Appearance**, scroll to **Clear Ice** below the transparency
+switch. It adds a translucent tinted surface, saturated backdrop, directional
+highlights, a rounded reflective rim, and inset shading to shell surfaces.
+It applies across themes and works in both dark and light mode.
+
+- **Blur** runs from 0 to 40 pixels: clearer to blurrier.
+- **Surface tint** controls how much the theme colors the glass: more transparent
+  to more solid. A small tint remains at the transparent end for readability.
+- The preview and shell update while dragging. Values save when the slider is
+  released, and are included with other settings in backups.
+- **Clear Ice off** returns to the simpler frosted appearance.
+- **Transparency off** uses solid surfaces and disables the material controls.
+
+Window frames, taskbar buttons, Start, context menus, search, flyouts,
+notifications, and widgets share the material. App documents and iframe content
+are not filtered. The rim is a decorative layer with pointer events disabled.
+Maximized and snapped windows have no floating frame inset. The effect adds no
+continuous animation and respects reduced motion and forced colors.
+
+The material uses CSS backdrop filters, layered gradients, masks, and shadows;
+it does not require screen capture or access to sandboxed app content. Browsers
+without backdrop filters receive solid surfaces. Masked rims have a shadow-only
+fallback when mask compositing is unavailable.
+
+Implementation references: [backdrop-filter](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/backdrop-filter)
+and [mask-composite](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/mask-composite).
+
 ## Desktop widgets
 
 Right-click the desktop and choose **Add widgets**, or use **Settings → Widgets**.

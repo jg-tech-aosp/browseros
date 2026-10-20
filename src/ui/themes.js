@@ -1,4 +1,5 @@
 /** Coordinated shell palettes, also shared with sandboxed apps through BOS.os.theme(). */
+import { iceVariables } from './clear-ice.js';
 export function resolveWallpaper(value, darkMode = true) {
   if (value !== 'builtin:clear-ice' && value !== 'builtin:clear-ice-light') return value;
   const light = value === 'builtin:clear-ice-light' || darkMode === false;
@@ -42,7 +43,7 @@ function translucent(hex, alpha) {
   return 'rgba(' + [0, 2, 4].map(i => parseInt(value.slice(i, i + 2), 16)).join(',') + ',' + alpha + ')';
 }
 
-export function themeVariables({ themeId, darkMode = true, transparency = true }) {
+export function themeVariables({ themeId, darkMode = true, transparency = true, clearIce = true, glassBlur = 16, glassTint = 44 }) {
   const colors = themeColors(themeId, darkMode);
   const glass = transparency !== false;
   return {
@@ -63,6 +64,8 @@ export function themeVariables({ themeId, darkMode = true, transparency = true }
     '--wm-control-hover': darkMode ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.09)',
     '--wm-separator': darkMode ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.12)',
     '--wm-backdrop-filter': glass ? 'blur(24px)' : 'none',
+    '--wm-radius': '8px',
+    ...(glass && clearIce !== false ? iceVariables({ colors, darkMode, glassBlur, glassTint }) : {}),
   };
 }
 

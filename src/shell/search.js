@@ -31,16 +31,16 @@ export class Search {
     overlay.id = 'bos-search-overlay';
     overlay.style.cssText = `
       position:fixed;inset:0;background:rgba(0,0,0,0.5);
-      backdrop-filter:blur(4px);z-index:99990;
+      z-index:99990;
       display:none;align-items:flex-start;justify-content:center;
       padding-top:15vh;
     `;
 
     overlay.innerHTML = `
       <div id="bos-search-box" style="
-        width:580px;background:rgba(20,20,40,0.98);
-        backdrop-filter:blur(30px);
-        border:1px solid rgba(255,255,255,0.15);border-radius:14px;
+        width:min(580px,92vw);background:var(--wm-panel-bg);color:var(--wm-text);
+        backdrop-filter:var(--wm-backdrop-filter);
+        border:1px solid var(--wm-panel-border);border-radius:14px;
         box-shadow:0 16px 48px rgba(0,0,0,0.6);overflow:hidden;
       ">
         <div style="display:flex;align-items:center;padding:14px 18px;gap:12px;
@@ -49,14 +49,14 @@ export class Search {
           <input id="bos-search-input" type="text"
             placeholder="Search apps, files, settings..."
             style="flex:1;background:transparent;border:none;outline:none;
-              color:#e0e0ff;font-size:16px;font-family:inherit"
+              color:var(--wm-text);font-size:16px;font-family:inherit"
             autocomplete="off" spellcheck="false">
-          <kbd style="font-size:11px;color:#8888aa;background:rgba(255,255,255,0.07);
+          <kbd style="font-size:11px;color:var(--wm-text-dim);background:rgba(255,255,255,0.07);
             padding:2px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.1)">esc</kbd>
         </div>
         <div id="bos-search-results" style="max-height:380px;overflow-y:auto;padding:6px"></div>
         <div id="bos-search-footer" style="
-          padding:8px 18px;font-size:11px;color:#8888aa;
+          padding:8px 18px;font-size:11px;color:var(--wm-text-dim);
           border-top:1px solid rgba(255,255,255,0.06);
           display:flex;gap:16px;
         ">
@@ -170,7 +170,7 @@ export class Search {
 
     if (this._results.length === 0) {
       this._list.innerHTML = `
-        <div style="padding:24px;text-align:center;color:#8888aa;font-size:13px">
+        <div style="padding:24px;text-align:center;color:var(--wm-text-dim);font-size:13px">
           No results
         </div>
       `;
@@ -185,7 +185,7 @@ export class Search {
         lastType = result.type;
         const header = document.createElement('div');
         header.style.cssText = `
-          padding:6px 14px 3px;font-size:11px;color:#8888aa;
+          padding:6px 14px 3px;font-size:11px;color:var(--wm-text-dim);
           text-transform:uppercase;letter-spacing:0.05em;
         `;
         header.textContent = result.type === 'app' ? 'Apps'
@@ -219,8 +219,8 @@ export class Search {
       const textEl = document.createElement('div');
       textEl.style.cssText = 'flex:1;overflow:hidden';
       textEl.innerHTML = `
-        <div style="font-size:14px;color:#e0e0ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${result.label}</div>
-        <div style="font-size:11px;color:#8888aa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${result.sublabel || ''}</div>
+        <div style="font-size:14px;color:var(--wm-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${result.label}</div>
+        <div style="font-size:11px;color:var(--wm-text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${result.sublabel || ''}</div>
       `;
 
       el.appendChild(iconEl);
@@ -292,3 +292,5 @@ export class Search {
     return map[ext] || '📄';
   }
 }
+
+
