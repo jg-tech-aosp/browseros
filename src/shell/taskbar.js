@@ -365,6 +365,7 @@ export class Taskbar {
     panel.style.cssText = 'position:fixed;right:8px;bottom:calc(var(--wm-taskbar-h) + 8px);width:320px;padding:14px;background:var(--wm-panel-bg);backdrop-filter:var(--wm-backdrop-filter,blur(20px));border:1px solid var(--wm-panel-border);border-radius:12px;box-shadow:0 10px 34px rgba(0,0,0,.42);z-index:9100;color:var(--wm-text);font-family:var(--wm-font);';
     let selected = new Date();
     let month = new Date(selected.getFullYear(), selected.getMonth(), 1);
+    let followsToday = true;
 
     const keyOf = date => date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
     const time = document.createElement('div');
@@ -423,7 +424,11 @@ export class Taskbar {
         button.style.cssText = 'height:31px;border:1px solid ' + (key === keyOf(selected) ? 'var(--wm-accent)' : 'transparent') +
           ';border-radius:6px;background:' + (key === keyOf(selected) ? 'var(--wm-accent)' : key === todayKey ? 'var(--wm-control-hover)' : 'transparent') +
           ';color:' + (key === keyOf(selected) ? '#fff' : 'var(--wm-text)') + ';cursor:pointer;font:inherit;font-size:12px';
-        button.onclick = () => { selected = date; renderDays(); };
+        button.onclick = () => {
+          selected = date;
+          followsToday = keyOf(date) === keyOf(new Date());
+          renderDays();
+        };
         days.appendChild(button);
       }
     };
@@ -442,7 +447,7 @@ export class Taskbar {
       const now = new Date();
       time.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       dateLabel.textContent = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-      if (keyOf(now) !== keyOf(selected) && selected.toDateString() === new Date().toDateString()) {
+      if (followsToday && keyOf(now) !== keyOf(selected)) {
         selected = now;
         month = new Date(now.getFullYear(), now.getMonth(), 1);
         renderDays();
