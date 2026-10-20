@@ -78,7 +78,9 @@ const WM_STYLES = `
     transition: box-shadow 0.15s, top 0.24s cubic-bezier(.2,.75,.25,1), left 0.24s cubic-bezier(.2,.75,.25,1), width 0.24s cubic-bezier(.2,.75,.25,1), height 0.24s cubic-bezier(.2,.75,.25,1), border-radius 0.24s ease;
     user-select: none;
   }
-  .wm-window.wm-window-ice-dragging, .wm-window.wm-window-ice-sliding { transition: none !important; }
+  /* Pointer movement must not restart the position animation on every event. */
+  .wm-window.wm-window-dragging, .wm-window.wm-window-ice-sliding { transition: none !important; }
+  body.wm-window-drag-active .wm-iframe { pointer-events:none!important; }
   .wm-window.wm-window-opening { animation: wm-window-open 0.22s cubic-bezier(.2,.75,.25,1) both; }
   .wm-window.wm-window-minimizing { animation: wm-window-minimize 0.18s ease-in both; pointer-events:none; }
   .wm-window.wm-window-restoring { animation: wm-window-restore 0.2s cubic-bezier(.2,.75,.25,1) both; }
@@ -782,12 +784,12 @@ export class WindowManager {
     if (maxButton) maxButton.title = 'Maximize';
   }
 
-  _snapTargetAt(event, desktop) {
-    const bounds = desktop.getBoundingClientRect();
+  _snapTargetAt(event, desktop, geometry = null) {
+    const bounds = geometry?.bounds || desktop.getBoundingClientRect();
     const x = event.clientX - bounds.left;
     const y = event.clientY - bounds.top;
-    const width = desktop.clientWidth;
-    const height = desktop.clientHeight;
+    const width = geometry?.width ?? desktop.clientWidth;
+    const height = geometry?.height ?? desktop.clientHeight;
     const corner = 48;
     const edge = 22;
     if (x <= corner && y <= corner) return 'top-left';
@@ -880,6 +882,7 @@ export class WindowManager {
   close(instanceId) {
     const w = this._windows.get(instanceId);
     if (!w) return;
+    w.state.cancelDrag?.();
     const appId = w.appId;
     w.el.remove();
     this._windows.delete(instanceId);
@@ -1124,15 +1127,17 @@ export class WindowManager {
     };
 
     handle.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
       if (e.target.closest('.wm-titlebar-btns')) return;
       const w = this._windows.get(instanceId);
       const desktop = document.getElementById('wm-desktop');
       if (!w || !desktop) return;
       stopSlide();
+      win.classList.add('wm-window-dragging');
       if (w.state.maximized || w.state.snap) this._restoreWindowForDrag(w, e, desktop);
       const iceMode = this._settings?.get('iceMode') === true &&
         this._settings?.get('reduceMotion') !== true;
-      win.classList.add('wm-window-dragging');
+      document.body.classList.add('wm-window-drag-active');
       if (iceMode) win.classList.add('wm-window-ice-dragging');
       const sx = e.clientX, sy = e.clientY;
       const sl = parseInt(win.style.left) || 0;
@@ -1142,9 +1147,28 @@ export class WindowManager {
       let lastX = sx, lastY = sy, lastTime = performance.now();
       let velocityX = 0, velocityY = 0;
       let snapTarget = null;
+      let moveFrame = null, pendingMove = null, finished = false, moved = false;
+      const geometry = { bounds: desktop.getBoundingClientRect(), width: desktop.clientWidth, height: desktop.clientHeight };
       this._showSnapPreview(null, desktop);
 
+      const flushMove = () => {
+        moveFrame = null;
+        if (!pendingMove) return;
+        const pointer = pendingMove;
+        pendingMove = null;
+        const target = this._snapTargetAt(pointer, desktop, geometry);
+        // Snap geometry changes only when the pointer enters another zone.
+        if (target !== snapTarget) {
+          snapTarget = target;
+          this._showSnapPreview(snapTarget, desktop);
+        }
+        const nextLeft = sl + pointer.clientX - sx;
+        const nextTop = st + pointer.clientY - sy;
+        win.style.left = (iceMode ? Math.max(0, Math.min(maxX, nextLeft)) : Math.max(0, nextLeft)) + 'px';
+        win.style.top = (iceMode ? Math.max(0, Math.min(maxY, nextTop)) : Math.max(0, nextTop)) + 'px';
+      };
       const onMove = e2 => {
+        moved = true;
         const now = performance.now();
         const sampleTime = Math.max(1, now - lastTime);
         const sampleX = (e2.clientX - lastX) / sampleTime;
@@ -1155,18 +1179,25 @@ export class WindowManager {
         lastY = e2.clientY;
         lastTime = now;
 
-        const nextLeft = sl + e2.clientX - sx;
-        const nextTop = st + e2.clientY - sy;
-        win.style.left = (iceMode ? Math.max(0, Math.min(maxX, nextLeft)) : Math.max(0, nextLeft)) + 'px';
-        win.style.top = (iceMode ? Math.max(0, Math.min(maxY, nextTop)) : Math.max(0, nextTop)) + 'px';
-        snapTarget = this._snapTargetAt(e2, desktop);
-        this._showSnapPreview(snapTarget, desktop);
+        pendingMove = { clientX: e2.clientX, clientY: e2.clientY };
+        if (moveFrame === null) moveFrame = requestAnimationFrame(flushMove);
       };
-      const onUp = () => {
+      const finishDrag = (applyDrop) => {
+        if (finished) return;
+        finished = true;
+        if (moveFrame !== null) cancelAnimationFrame(moveFrame);
+        flushMove();
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
+        window.removeEventListener('blur', onBlur);
+        w.state.cancelDrag = null;
+        document.body.classList.remove('wm-window-drag-active');
+        // Commit the final pointer position with transitions still disabled.
+        // Otherwise a release before the queued frame can start a new tween.
+        void win.offsetLeft;
         win.classList.remove('wm-window-dragging', 'wm-window-ice-dragging');
         this._showSnapPreview(null, desktop);
+        if (!applyDrop) return;
         if (snapTarget) {
           if (snapTarget === 'maximize') this.maximize(instanceId);
           else this._applySnap(w, snapTarget, desktop);
@@ -1176,8 +1207,15 @@ export class WindowManager {
           startSlide(velocityX * releaseDamping * 1.15, velocityY * releaseDamping * 1.15);
         }
       };
+      const onUp = e2 => {
+        if (moved) pendingMove = { clientX: e2.clientX, clientY: e2.clientY };
+        finishDrag(true);
+      };
+      const onBlur = () => finishDrag(false);
+      w.state.cancelDrag = onBlur;
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
+      window.addEventListener('blur', onBlur);
       e.preventDefault();
     });
   }
@@ -1218,6 +1256,7 @@ export class WindowManager {
     }
 
     win.addEventListener('mousemove', e => {
+      if (win.classList.contains('wm-window-dragging')) { win.style.cursor = ''; return; }
       if (win.classList.contains('maximized')) { win.style.cursor = ''; return; }
       const edge = getEdges(e);
       win.style.cursor = edge ? CURSORS[edge] : '';
