@@ -445,7 +445,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     var tint = makeRange('Surface tint', 'glassTint', 0, 100, 44, 'More transparent', 'More solid', '%');
     var lensButton = createGlassSwitch(settings.get('glassMagnification') === true, 'Glass magnification');
     lensButton.id = 'bos-glass-magnification-toggle';
-    controls.appendChild(row('Glass magnification', 'Curved glass with a gentle center zoom and rounded edge refraction in Chrome and Edge. On by default; turn off for better performance.', lensButton));
+    controls.appendChild(row('Glass magnification', 'Curved glass with a gentle center zoom and rounded edge refraction in Chrome and Edge. Firefox does not support this effect; standard glass blur is still available. On by default; turn off for better performance.', lensButton));
     lensButton.onclick = async function() {
       lensButton.disabled = true;
       lensButton.setAttribute('aria-busy', 'true');
