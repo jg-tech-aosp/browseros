@@ -113,6 +113,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
   // ── Section renderers ────────────────────────────────────────────────────────
 
   function renderSection(id, main) {
+    main._sectionRevision = (main._sectionRevision || 0) + 1;
     main._iceCleanup?.(); main._iceCleanup = null;
     wm.applyGlassPreferences(settings.getTheme());
     main.innerHTML = '';
@@ -150,7 +151,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     }
     el.appendChild(left);
     if (control) {
-      if (control.getAttribute('role') === 'switch' && !control.hasAttribute('aria-label')) control.setAttribute('aria-label', label);
+      if (control.getAttribute?.('role') === 'switch' && !control.hasAttribute('aria-label')) control.setAttribute('aria-label', label);
       el.appendChild(control);
     }
     return el;
@@ -680,13 +681,16 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
   // ── Storage ──────────────────────────────────────────────────────────────────
 
   async function renderStorage(main) {
+    var sectionRevision = main._sectionRevision;
     main.appendChild(h2('Storage'));
 
     // Count IDB usage estimate
     var estimate = { usage: 0, quota: 0 };
     if (navigator.storage && navigator.storage.estimate) {
-      estimate = await navigator.storage.estimate();
+      try { estimate = await navigator.storage.estimate(); }
+      catch (_) { /* Backup controls remain available without an estimate. */ }
     }
+    if (!main.isConnected || main._sectionRevision !== sectionRevision) return;
     var usedMB  = (estimate.usage  / 1024 / 1024).toFixed(1);
     var totalMB = (estimate.quota  / 1024 / 1024).toFixed(0);
     var pct     = estimate.quota ? Math.round((estimate.usage / estimate.quota) * 100) : 0;

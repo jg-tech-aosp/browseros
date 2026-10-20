@@ -19,6 +19,8 @@
 
   let _reqId = 0;
   const _pending = new Map(); // reqId → { resolve, reject }
+  let _beforeClose = null;
+  let _closeRequest = null;
 
   // Boot data injected by the kernel via 'bos.boot' message
   let _bootData = null;
@@ -38,6 +40,19 @@
     if (e.source !== window.parent) return;
     const msg = e.data;
     if (!msg) return;
+
+    // Close requests come only from the parent. The handler may show a Save /
+    // Discard / Cancel dialog; a failure always keeps the app window open.
+    if (msg.type === 'bos.requestClose' && typeof msg.requestId === 'string') {
+      if (_closeRequest !== null) return;
+      const requestId = msg.requestId;
+      _closeRequest = requestId;
+      Promise.resolve().then(() => _beforeClose ? _beforeClose() : false)
+        .then(allow => window.parent.postMessage({ type: 'bos.closeDecision', requestId, allow: allow === true }, '*'))
+        .catch(() => window.parent.postMessage({ type: 'bos.closeDecision', requestId, allow: false }, '*'))
+        .finally(() => { _closeRequest = null; });
+      return;
+    }
 
     // Response to a request
     if (typeof msg.reqId === 'number') {
@@ -105,6 +120,21 @@
     // ── BOS.ui ───────────────────────────────────────────────────────────────
 
     ui: {
+      // These signals can protect only this iframe's own window. They grant no
+      // filesystem, parent DOM, or other app access and are validated by the WM.
+      setDocumentDirty(dirty) {
+        window.parent.postMessage({ type: 'bos.documentDirty', dirty: dirty === true }, '*');
+      },
+      onBeforeClose(handler) {
+        if (typeof handler !== 'function') throw new TypeError('A close handler is required');
+        _beforeClose = handler;
+        window.parent.postMessage({ type: 'bos.closeGuard', enabled: true }, '*');
+        return () => {
+          if (_beforeClose !== handler) return;
+          _beforeClose = null;
+          window.parent.postMessage({ type: 'bos.closeGuard', enabled: false }, '*');
+        };
+      },
       // Passive
       notify:      (message)          => send('ui.notify',      { message }),
       setTitle:    (title)            => send('ui.setTitle',    { title }),
@@ -208,3 +238,5 @@
   });
 
 })();
+
+

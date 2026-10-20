@@ -351,6 +351,7 @@ export class WindowManager {
     this._switcherIndex = 0;
     this._switcherReturnFocus = null;
     this._systemApps = new Map(); // appId → mount function (for native apps)
+    this._closeRequestSerial = 0;
   }
 
   // ─── Boot ──────────────────────────────────────────────────────────────────
@@ -359,6 +360,7 @@ export class WindowManager {
     this._injectStyles();
     this._buildDOM();
     this._bindAppSwitcher();
+    this._bindCloseGuards();
     this._startClock();
     console.log('[wm] Booted');
   }
@@ -591,6 +593,31 @@ export class WindowManager {
       if (event.data?.type !== 'bos:appSwitcher') return;
       const ownedFrame = [...this._windows.values()].some(win => win.iframe?.contentWindow === event.source);
       if (ownedFrame) this.showAppSwitcher();
+    });
+  }
+
+  _bindCloseGuards() {
+    window.addEventListener('message', event => {
+      const msg = event.data;
+      if (!msg || !['bos.closeGuard', 'bos.documentDirty', 'bos.closeDecision'].includes(msg.type)) return;
+      // Sandboxed frames have opaque origins. Ownership is checked against the
+      // exact registered contentWindow, never against a claimed app ID.
+      const entry = [...this._windows.entries()].find(([, w]) => w.iframe?.contentWindow === event.source);
+      if (!entry) return;
+      const [instanceId, w] = entry;
+      if (msg.type === 'bos.closeGuard' && typeof msg.enabled === 'boolean') {
+        w.state.closeGuard = msg.enabled;
+        if (!msg.enabled) { w.state.pendingClose = null; w.state.documentDirty = false; }
+      } else if (msg.type === 'bos.documentDirty' && typeof msg.dirty === 'boolean') {
+        w.state.documentDirty = msg.dirty;
+      } else if (msg.type === 'bos.closeDecision' && w.state.pendingClose?.requestId === msg.requestId) {
+        w.state.pendingClose = null;
+        if (msg.allow === true) this._closeWindow(instanceId);
+      }
+    });
+    window.addEventListener('beforeunload', event => {
+      if (![...this._windows.values()].some(w => w.state.documentDirty)) return;
+      event.preventDefault(); event.returnValue = '';
     });
   }
 
@@ -882,6 +909,29 @@ export class WindowManager {
   close(instanceId) {
     const w = this._windows.get(instanceId);
     if (!w) return;
+    if (w.iframe && w.state.closeGuard) {
+      this.focus(instanceId);
+      if (w.state.pendingClose) {
+        // A hung/crashed app cannot trap its window forever. Only a further
+        // user close action offers a force-close confirmation; never auto-close.
+        if (Date.now() - w.state.pendingClose.started > 10000 &&
+            window.confirm('This app has not finished its close request. Force close it? Unsaved changes will be lost.')) {
+          this._closeWindow(instanceId);
+        } else w.iframe.focus();
+        return;
+      }
+      const requestId = 'close-' + ++this._closeRequestSerial;
+      w.state.pendingClose = { requestId, started: Date.now() };
+      w.iframe.contentWindow.postMessage({ type: 'bos.requestClose', requestId }, '*');
+      return;
+    }
+    this._closeWindow(instanceId);
+  }
+
+  _closeWindow(instanceId) {
+    const w = this._windows.get(instanceId);
+    if (!w) return;
+    w.state.pendingClose = null;
     w.state.cancelDrag?.();
     const appId = w.appId;
     w.el.remove();

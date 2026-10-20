@@ -62,6 +62,10 @@ export class Kernel {
 
     const { reqId, type, payload = {} } = e.data;
 
+    // These non-RPC signals are handled by the window manager, which checks
+    // exact iframe ownership. Do not generate malformed-request responses.
+    if (typeof reqId !== 'number' && ['bos.closeGuard', 'bos.documentDirty', 'bos.closeDecision'].includes(type)) return;
+
     // Validate message shape
     if (typeof reqId !== 'number' || typeof type !== 'string') {
       this._error(e.source, reqId, 'Malformed message');
@@ -362,3 +366,5 @@ export class Kernel {
     });
   }
 }
+
+
