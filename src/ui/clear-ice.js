@@ -1,4 +1,5 @@
 /** Clear Ice shell material. Filters affect the backdrop, never app content. */
+import { syncIceLens } from './ice-lens.js';
 export function boundedNumber(value, fallback, min, max) {
   if (value == null || value === '' || typeof value === 'boolean') return fallback;
   const number = Number(value);
@@ -65,8 +66,12 @@ const STYLES = `
     border-color:var(--wm-ice-rim)!important; box-shadow:var(--wm-ice-shadow)!important;
     -webkit-backdrop-filter:var(--wm-backdrop-filter); backdrop-filter:var(--wm-backdrop-filter);
   }
+  .bos-clear-ice :is(.wm-titlebar,#wm-taskbar,${panels})[style*="--wm-ice-lens"] {
+    -webkit-backdrop-filter:var(--wm-ice-lens) var(--wm-backdrop-filter)!important;
+    backdrop-filter:var(--wm-ice-lens) var(--wm-backdrop-filter)!important;
+  }
   /* An inset masked rim stays above content without intercepting pointer events.
-     It needs no copied app DOM, canvas capture, WebGL loop, or filter texture. */
+     It needs no copied app DOM, screen capture, or animation loop. */
   @supports (mask-composite:exclude) or (-webkit-mask-composite:xor) {
   .bos-clear-ice :is(.wm-window,${panels})::after {
     content:''; position:absolute; inset:0; border-radius:inherit; padding:1px;
@@ -94,7 +99,8 @@ const STYLES = `
   .bos-ice-range:focus-visible { outline:2px solid var(--wm-accent); outline-offset:4px; border-radius:8px; }
   .bos-ice-disabled { opacity:.5; }
   @media (forced-colors:active) {
-    .bos-clear-ice :is(.wm-window,${panels}) { background:Canvas!important; color:CanvasText!important; box-shadow:none!important; border-color:CanvasText!important; backdrop-filter:none!important; }
+    .bos-clear-ice :is(.wm-titlebar,#wm-taskbar,${panels})[style*="--wm-ice-lens"] { -webkit-backdrop-filter:none!important; backdrop-filter:none!important; }
+    .bos-clear-ice :is(.wm-window,.wm-titlebar,#wm-taskbar,${panels}) { background:Canvas!important; color:CanvasText!important; box-shadow:none!important; border-color:CanvasText!important; -webkit-backdrop-filter:none!important; backdrop-filter:none!important; }
     .bos-clear-ice :is(.wm-window,${panels})::after { display:none; }
   }
 `;
@@ -110,6 +116,7 @@ export function syncClearIce(theme) {
   const enabled = supported && theme.transparency !== false && theme.clearIce !== false;
   document.documentElement.classList.toggle('bos-clear-ice', enabled);
   document.documentElement.dataset.clearIce = enabled ? 'on' : 'off';
+  syncIceLens(enabled, '.wm-titlebar,#wm-taskbar,' + panels);
   // A browser with no backdrop filters receives readable solid surfaces.
   return supported ? theme : { ...theme, transparency: false };
 }

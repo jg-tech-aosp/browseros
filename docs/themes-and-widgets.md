@@ -37,6 +37,14 @@ it does not require screen capture or access to sandboxed app content. Browsers
 without backdrop filters receive solid surfaces. Masked rims have a shadow-only
 fallback when mask compositing is unavailable.
 
+Clear Ice also adds a static **2% backdrop magnification** in Chromium browsers
+(including Chrome and Edge). Text, controls, and pointer hit areas are unchanged.
+It is easiest to see at lower Blur settings. Other browser engines retain the
+normal glass backdrop because SVG backdrop filters are not enabled there.
+Each surface's filter adjusts for its aspect ratio and is released when the
+surface is removed. The coordinate map is generated once from mathematical
+values; no screen pixels or sandboxed app DOM are copied.
+
 Implementation references: [backdrop-filter](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/backdrop-filter)
 and [mask-composite](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/mask-composite).
 
