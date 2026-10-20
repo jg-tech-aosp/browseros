@@ -1,7 +1,10 @@
 /** Coordinated shell palettes, also shared with sandboxed apps through BOS.os.theme(). */
-export function resolveWallpaper(value) {
-  if (value !== 'builtin:clear-ice') return value;
-  const liquid = new URL('../../assets/wallpapers/clear-ice.png', import.meta.url).href;
+export function resolveWallpaper(value, darkMode = true) {
+  if (value !== 'builtin:clear-ice' && value !== 'builtin:clear-ice-light') return value;
+  const light = value === 'builtin:clear-ice-light' || darkMode === false;
+  const liquid = new URL(light
+    ? '../../assets/wallpapers/clear-ice-light.png'
+    : '../../assets/wallpapers/clear-ice.png', import.meta.url).href;
   return 'url("' + liquid + '") center / cover no-repeat fixed';
 }
 
@@ -17,6 +20,7 @@ export const THEMES = [
 
 export const WALLPAPERS = [
   { label: 'Clear Ice', val: THEMES[1].wallpaper },
+  { label: 'Clear Ice Light', val: 'builtin:clear-ice-light' },
   { label: 'Galaxy', val: THEMES[0].wallpaper },
   { label: 'Sunset', val: 'linear-gradient(135deg,#f093fb,#f5576c,#fda085)' },
   { label: 'Ocean', val: 'linear-gradient(135deg,#2193b0,#6dd5ed)' },

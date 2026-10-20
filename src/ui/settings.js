@@ -55,7 +55,7 @@ export class Settings {
       themeId: this._cache.themeId,
       colors: themeColors(this._cache.themeId, this._cache.darkMode),
       accent:    this._cache.accent,
-      wallpaper: resolveWallpaper(this._cache.wallpaper),
+      wallpaper: resolveWallpaper(this._cache.wallpaper, this._cache.darkMode),
       font:      this._cache.font,
       darkMode:  this._cache.darkMode,
       transparency: this._cache.transparency,
