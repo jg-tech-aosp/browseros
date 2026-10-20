@@ -427,7 +427,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     lensButton.setAttribute('role', 'switch');
     lensButton.setAttribute('aria-label', 'Glass magnification');
     lensButton.style.cssText = switchButton.style.cssText;
-    controls.appendChild(row('Glass magnification', 'Experimental 2% zoom in Chrome and Edge. Can make movement and animations stutter. Off by default.', lensButton));
+    controls.appendChild(row('Glass magnification', 'Curved glass with a gentle center zoom and rounded edge refraction in Chrome and Edge. Can reduce performance. Off by default.', lensButton));
     lensButton.onclick = async function() {
       lensButton.disabled = true;
       try { await settings.set('glassMagnification', settings.get('glassMagnification') !== true); }

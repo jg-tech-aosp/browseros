@@ -38,16 +38,22 @@ without backdrop filters receive solid surfaces. Masked rims have a shadow-only
 fallback when mask compositing is unavailable.
 
 Clear Ice offers an experimental **Glass magnification** switch in Appearance,
-off by default. It adds static **2% backdrop magnification** in Chromium browsers
-(including Chrome and Edge). SVG displacement can make window movement and menu
-animations stutter; leave it off for the normal CSS glass rendering. Disabling
+off by default. It simulates **curved glass refraction** in Chromium browsers
+(including Chrome and Edge): gentle center magnification and a nonlinear bend
+near the rounded rim. The bend follows each surface's dimensions and corner
+radii, tapers to zero at the boundary, and stays within 6.4 CSS pixels. Center
+zoom displacement is smoothly limited to 2 pixels per axis so long titlebars
+do not produce a large sideways shift. SVG displacement can make window movement
+and menu animations stutter; leave it off for the normal CSS glass rendering. Disabling
 the switch removes the lens filters and their observers immediately. Text,
 controls, and pointer hit areas are unchanged.
 It is easiest to see at lower Blur settings. Other browser engines retain the
 normal glass backdrop because SVG backdrop filters are not enabled there.
-Each surface's filter adjusts for its aspect ratio and is released when the
-surface is removed. The coordinate map is generated once from mathematical
-values; no screen pixels or sandboxed app DOM are copied.
+Each surface's filter is released when the surface is removed. Coordinate maps
+are generated from rounded rectangle geometry on creation or size changes,
+with up to 16 recent sizes cached. Nothing is regenerated just because a window
+moves. No screen pixels or sandboxed app DOM are copied. This is a stylized
+optical effect, not a physical glass simulation.
 
 Implementation references: [backdrop-filter](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/backdrop-filter)
 and [mask-composite](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/mask-composite).
