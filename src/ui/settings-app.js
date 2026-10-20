@@ -15,6 +15,7 @@ import { THEMES, WALLPAPERS, resolveWallpaper, DEFAULT_THEME, DEFAULT_LIGHT_THEM
 import { availableWidgets, setWidgetEnabled } from '../shell/widgets.js';
 import { boundedNumber } from './clear-ice.js';
 import { styleNativeApp } from './native-layout.js';
+import { createGlassSwitch, setGlassSwitch } from './glass-switch.js';
 
 const DEBUG_LOG_LIMIT = 500;
 const DEBUG_LOGS = [];
@@ -148,21 +149,25 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
       left.appendChild(subEl);
     }
     el.appendChild(left);
-    if (control) el.appendChild(control);
+    if (control) {
+      if (control.getAttribute('role') === 'switch' && !control.hasAttribute('aria-label')) control.setAttribute('aria-label', label);
+      el.appendChild(control);
+    }
     return el;
   }
 
   function toggle(value, onChange) {
-    var el = document.createElement('div');
-    el.style.cssText = 'width:44px;height:24px;border-radius:12px;position:relative;cursor:pointer;transition:background 0.2s;background:' + (value ? 'var(--wm-accent)' : '#444');
-    var knob = document.createElement('div');
-    knob.style.cssText = 'position:absolute;width:18px;height:18px;background:#fff;border-radius:50%;top:3px;transition:left 0.2s;left:' + (value ? '23px' : '3px');
-    el.appendChild(knob);
-    el.onclick = function() {
-      value = !value;
-      el.style.background = value ? 'var(--wm-accent)' : '#444';
-      knob.style.left = value ? '23px' : '3px';
-      onChange(value);
+    var el = createGlassSwitch(value);
+    el.onclick = async function() {
+      var previous = el.getAttribute('aria-checked') === 'true';
+      setGlassSwitch(el, !previous);
+      el.disabled = true;
+      el.setAttribute('aria-busy', 'true');
+      try { await onChange(!previous); }
+      catch (error) {
+        setGlassSwitch(el, previous);
+        wm.notify('Could not save setting: ' + error.message);
+      } finally { el.disabled = false; el.removeAttribute('aria-busy'); }
     };
     return el;
   }
@@ -391,10 +396,19 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
         wm.applyTheme(settings.getTheme());
         kernel.broadcast('themeChanged', settings.getTheme());
         if (changes.themeId) {
-          var scroll = main.scrollTop;
-          main.replaceChildren();
-          renderAppearance(main);
-          main.scrollTop = scroll;
+          // Keep the switch mounted so its thumb can finish moving.
+          theme = settings.getAll();
+          themeGrid.querySelectorAll('[data-theme-id]').forEach(function(card) {
+            var selected = card.dataset.themeId === theme.themeId;
+            card.setAttribute('aria-pressed', String(selected));
+            card.style.borderColor = selected ? 'var(--wm-accent)' : 'var(--wm-control-border)';
+          });
+          wpGrid.querySelectorAll('[data-wallpaper]').forEach(function(card) {
+            var preset = WALLPAPERS.find(function(item) { return item.label === card.dataset.wallpaper; });
+            var selected = preset?.val === theme.wallpaper;
+            card.setAttribute('aria-pressed', String(selected));
+            card.style.borderColor = selected ? 'var(--wm-accent)' : 'transparent';
+          });
         }
       })
     ));
@@ -412,12 +426,8 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
   function renderClearIce(main) {
     var group = document.createElement('section');
     group.setAttribute('aria-label', 'Clear Ice appearance');
-    var switchButton = document.createElement('button');
-    switchButton.type = 'button';
+    var switchButton = createGlassSwitch(settings.get('clearIce') !== false, 'Clear Ice');
     switchButton.id = 'bos-clear-ice-toggle';
-    switchButton.setAttribute('role', 'switch');
-    switchButton.setAttribute('aria-label', 'Clear Ice');
-    switchButton.style.cssText = 'flex-shrink:0;margin-left:12px;padding:7px 12px;border-radius:18px;border:1px solid var(--wm-control-border);background:var(--wm-control-bg);color:var(--wm-text);cursor:pointer;font:inherit';
     group.appendChild(row('Clear Ice', 'Reflective rims, soft highlights, and translucent depth', switchButton));
     var preview = document.createElement('div');
     preview.className = 'bos-ice-demo-stage';
@@ -432,18 +442,16 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     var ranges = [];
     var blur = makeRange('Blur', 'glassBlur', 0, 40, 16, 'Clearer', 'Blurrier', ' px');
     var tint = makeRange('Surface tint', 'glassTint', 0, 100, 44, 'More transparent', 'More solid', '%');
-    var lensButton = document.createElement('button');
-    lensButton.type = 'button';
+    var lensButton = createGlassSwitch(settings.get('glassMagnification') === true, 'Glass magnification');
     lensButton.id = 'bos-glass-magnification-toggle';
-    lensButton.setAttribute('role', 'switch');
-    lensButton.setAttribute('aria-label', 'Glass magnification');
-    lensButton.style.cssText = switchButton.style.cssText;
     controls.appendChild(row('Glass magnification', 'Curved glass with a gentle center zoom and rounded edge refraction in Chrome and Edge. On by default; turn off for better performance.', lensButton));
     lensButton.onclick = async function() {
       lensButton.disabled = true;
+      lensButton.setAttribute('aria-busy', 'true');
+      setGlassSwitch(lensButton, settings.get('glassMagnification') !== true);
       try { await settings.set('glassMagnification', settings.get('glassMagnification') !== true); }
       catch (_) { wm.notify('Could not save glass magnification setting'); }
-      finally { refresh(); }
+      finally { lensButton.removeAttribute('aria-busy'); refresh(); }
     };
     group.appendChild(controls); main.appendChild(group);
 
@@ -479,13 +487,10 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
       var transparent = settings.get('transparency') !== false;
       var enabled = settings.get('clearIce') !== false;
       switchButton.disabled = !transparent;
-      switchButton.textContent = enabled ? 'On' : 'Off';
-      switchButton.setAttribute('aria-checked', String(enabled));
-      switchButton.style.opacity = transparent ? '1' : '.5';
+      setGlassSwitch(switchButton, enabled);
       blur.disabled = tint.disabled = !transparent || !enabled;
       lensButton.disabled = !transparent || !enabled;
-      lensButton.textContent = settings.get('glassMagnification') === true ? 'On' : 'Off';
-      lensButton.setAttribute('aria-checked', String(settings.get('glassMagnification') === true));
+      setGlassSwitch(lensButton, settings.get('glassMagnification') === true);
       controls.classList.toggle('bos-ice-disabled', !transparent || !enabled);
       ranges.forEach(function(range) {
         range.input.value = boundedNumber(settings.get(range.key), range.fallback, range.min, range.max);
@@ -494,9 +499,11 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     }
     switchButton.onclick = async function() {
       switchButton.disabled = true;
+      switchButton.setAttribute('aria-busy', 'true');
+      setGlassSwitch(switchButton, settings.get('clearIce') === false);
       try { await settings.set('clearIce', settings.get('clearIce') === false); }
       catch (_) { wm.notify('Could not save Clear Ice setting'); }
-      finally { refresh(); }
+      finally { switchButton.removeAttribute('aria-busy'); refresh(); }
     };
     refresh();
     var onSetting = function(_theme, key) {

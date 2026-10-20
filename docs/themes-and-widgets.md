@@ -64,6 +64,16 @@ optical effect, not a physical glass simulation.
 Implementation references: [backdrop-filter](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/backdrop-filter)
 and [mask-composite](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/mask-composite).
 
+## Clear Ice switches
+
+Settings switches share `src/ui/glass-switch.js`: a slim accent-colored track
+and a larger raised thumb with a slight white tint, rounded reflective rim,
+highlight and small backdrop blur while Clear Ice is enabled. The thumb glides
+between states and expands slightly while pressed. With transparency or Clear
+Ice disabled, it uses an opaque thumb. Keyboard activation, focus indicators,
+switch names, checked states, reduced motion and forced colors are supported.
+The same control is used for Clear Ice and magnification themselves.
+
 ## Native app sidebar islands
 
 File Manager and Settings use the shared `src/ui/native-layout.js` styles.
