@@ -226,10 +226,12 @@ const WM_STYLES = `
 
   #wm-clock {
     font-size: 12px; color: var(--wm-text);
-    text-align: right; padding: 0 8px;
+    text-align: right; padding: 3px 8px;
     white-space: nowrap; flex-shrink: 0;
-    line-height: 1.4;
+    line-height: 1.4; border-radius: 6px;
+    cursor: pointer; transition: background 0.15s;
   }
+  #wm-clock:hover, #wm-clock:focus-visible { background: var(--wm-control-hover); outline: none; }
 
   /* ── Desktop menu and flyout motion ── */
   #bos-startmenu.bos-menu-opening { animation: bos-menu-in 0.18s cubic-bezier(.2,.75,.25,1) both; }
