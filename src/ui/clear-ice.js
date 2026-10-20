@@ -117,7 +117,7 @@ export function syncClearIce(theme) {
   document.documentElement.classList.toggle('bos-clear-ice', enabled);
   document.documentElement.dataset.clearIce = enabled ? 'on' : 'off';
   // SVG displacement backdrops are expensive during window movement and menu
-  // animations. Normal Clear Ice uses native CSS blur; the lens is opt-in.
+  // animations. The lens can be disabled separately from the CSS glass blur.
   syncIceLens(enabled && theme.glassMagnification === true, '.wm-titlebar,#wm-taskbar,' + panels);
   // A browser with no backdrop filters receives readable solid surfaces.
   return supported ? theme : { ...theme, transparency: false };

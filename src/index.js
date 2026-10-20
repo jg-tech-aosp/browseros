@@ -22,6 +22,7 @@ import { Kernel }        from './kernel/kernel.js';
 import { WindowManager } from './wm/wm.js';
 import { Launcher }      from './apps/launcher.js';
 import { Settings }       from './ui/settings.js';
+import { DEFAULT_THEME, DEFAULT_LIGHT_THEME, resolveWallpaper } from './ui/themes.js';
 import { Notifications }  from './ui/notifications.js';
 import { registerSettingsApp }  from './ui/settings-app.js';
 import { registerFileManager }  from './shell/filemanager.js';
@@ -77,8 +78,8 @@ function showFirstRunOnboarding(settings) {
       #bos-onboarding .ob-themes { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:18px; }
       #bos-onboarding .ob-theme { min-height:112px; border:2px solid rgba(255,255,255,.14); border-radius:12px; padding:14px; color:#fff; cursor:pointer; text-align:left; font:inherit; }
       #bos-onboarding .ob-theme[aria-pressed="true"] { border-color:#4da3ff; box-shadow:0 0 0 3px rgba(77,163,255,.18); }
-      #bos-onboarding .ob-theme.dark { background:linear-gradient(135deg,#101827,#29364d); }
-      #bos-onboarding .ob-theme.light { background:linear-gradient(135deg,#edf4ff,#b8d5f4); color:#172033; }
+      #bos-onboarding .ob-theme.dark { background:linear-gradient(0deg,rgba(5,15,25,.88),rgba(5,15,25,.12)),${resolveWallpaper(DEFAULT_THEME.wallpaper, true).replace(' fixed', '')}; }
+      #bos-onboarding .ob-theme.light { background:linear-gradient(0deg,rgba(245,250,255,.9),rgba(245,250,255,.08)),${resolveWallpaper(DEFAULT_LIGHT_THEME.wallpaper, false).replace(' fixed', '')}; color:#172033; }
       #bos-onboarding .ob-theme strong { display:block; margin-bottom:7px; font-size:15px; }
       #bos-onboarding .ob-actions { display:flex; justify-content:space-between; gap:10px; margin-top:26px; }
       #bos-onboarding button.ob-btn { border:1px solid rgba(255,255,255,.2); border-radius:9px; padding:10px 16px; background:rgba(255,255,255,.08); color:#fff; font:inherit; cursor:pointer; }
@@ -113,8 +114,8 @@ function showFirstRunOnboarding(settings) {
           <h1 id="ob-title-theme">Choose your look.</h1>
           <p>You can change this later in Settings.</p>
           <div class="ob-themes">
-            <button type="button" class="ob-theme dark" data-theme="dark" aria-pressed="true"><strong>🌙 Dark</strong>Easy on the eyes</button>
-            <button type="button" class="ob-theme light" data-theme="light" aria-pressed="false"><strong>☀️ Light</strong>Bright and clear</button>
+            <button type="button" class="ob-theme dark" data-theme="dark" aria-pressed="true"><strong>🌙 Clear Ice</strong>Dark · Obsidian and ice blue</button>
+            <button type="button" class="ob-theme light" data-theme="light" aria-pressed="false"><strong>☀️ Clear Ice Light</strong>Light · Pearl white and cool blue</button>
           </div>
           <div class="ob-actions"><button class="ob-btn" data-back>Back</button><button class="ob-btn ob-primary" data-finish>Enter BrowserOS</button></div>
         </div>
@@ -155,12 +156,15 @@ function showFirstRunOnboarding(settings) {
       const name = nameInput.value.trim().slice(0, 32);
       if (!name) { page = 1; render(); nameInput.reportValidity(); return; }
       const profile = settings.get('userProfile') || { avatar: null };
+      const preset = darkMode ? DEFAULT_THEME : DEFAULT_LIGHT_THEME;
       await settings.setMany({
         userProfile: { ...profile, name },
+        themeId: preset.id,
+        accent: preset.accent,
         darkMode,
-        wallpaper: darkMode
-          ? settings.get('wallpaper')
-          : 'linear-gradient(135deg,#b8d4e3,#d9ecf7)',
+        wallpaper: preset.wallpaper,
+        transparency: true,
+        clearIce: true,
         onboardingComplete: true,
       });
       document.dispatchEvent(new CustomEvent('bos:profileChanged', { detail: { name } }));

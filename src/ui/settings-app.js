@@ -11,7 +11,7 @@
  * Keep a bounded console history for the Developer / Debug page.
  * Original console methods still run; entries stay in memory only.
  */
-import { THEMES, WALLPAPERS, resolveWallpaper } from './themes.js';
+import { THEMES, WALLPAPERS, resolveWallpaper, DEFAULT_THEME, DEFAULT_LIGHT_THEME } from './themes.js';
 import { availableWidgets, setWidgetEnabled } from '../shell/widgets.js';
 import { boundedNumber } from './clear-ice.js';
 
@@ -187,11 +187,11 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
       card.type = 'button';
       card.dataset.themeId = preset.id;
       card.title = preset.description;
-      card.setAttribute('aria-pressed', String((theme.themeId || 'classic') === preset.id));
-      card.style.cssText = 'min-width:0;padding:0;overflow:hidden;text-align:left;border:2px solid ' + ((theme.themeId || 'classic') === preset.id ? 'var(--wm-accent)' : 'var(--wm-control-border)') + ';border-radius:10px;background:var(--wm-control-bg);color:var(--wm-text);cursor:pointer;font:inherit';
+      card.setAttribute('aria-pressed', String((theme.themeId || DEFAULT_THEME.id) === preset.id));
+      card.style.cssText = 'min-width:0;padding:0;overflow:hidden;text-align:left;border:2px solid ' + ((theme.themeId || DEFAULT_THEME.id) === preset.id ? 'var(--wm-accent)' : 'var(--wm-control-border)') + ';border-radius:10px;background:var(--wm-control-bg);color:var(--wm-text);cursor:pointer;font:inherit';
       var preview = document.createElement('div');
       preview.style.cssText = 'height:82px;position:relative;overflow:hidden';
-      preview.style.background = resolveWallpaper(preset.wallpaper).replace(' fixed', '');
+      preview.style.background = resolveWallpaper(preset.wallpaper, preset.darkMode).replace(' fixed', '');
       var palette = preset[preset.darkMode ? 'dark' : 'light'];
       var windowPreview = document.createElement('div');
       windowPreview.style.cssText = 'position:absolute;left:22%;right:14%;top:17px;height:46px;border-radius:5px;background:' + palette[0] + ';border:1px solid ' + palette[3] + ';overflow:hidden;box-shadow:0 3px 10px #0003';
@@ -382,9 +382,21 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     // Dark mode
     main.appendChild(row('Dark Mode', 'Switch between dark and light themes',
       toggle(theme.darkMode, async function(val) {
-        await settings.set('darkMode', val);
+        var changes = { darkMode: val };
+        if ([DEFAULT_THEME.id, DEFAULT_LIGHT_THEME.id].includes(settings.get('themeId'))) {
+          var preset = val ? DEFAULT_THEME : DEFAULT_LIGHT_THEME;
+          changes.themeId = preset.id;
+          if ([DEFAULT_THEME.wallpaper, DEFAULT_LIGHT_THEME.wallpaper].includes(settings.get('wallpaper'))) changes.wallpaper = preset.wallpaper;
+        }
+        await settings.setMany(changes);
         wm.applyTheme(settings.getTheme());
         kernel.broadcast('themeChanged', settings.getTheme());
+        if (changes.themeId) {
+          var scroll = main.scrollTop;
+          main.replaceChildren();
+          renderAppearance(main);
+          main.scrollTop = scroll;
+        }
       })
     ));
 
@@ -427,7 +439,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     lensButton.setAttribute('role', 'switch');
     lensButton.setAttribute('aria-label', 'Glass magnification');
     lensButton.style.cssText = switchButton.style.cssText;
-    controls.appendChild(row('Glass magnification', 'Curved glass with a gentle center zoom and rounded edge refraction in Chrome and Edge. Can reduce performance. Off by default.', lensButton));
+    controls.appendChild(row('Glass magnification', 'Curved glass with a gentle center zoom and rounded edge refraction in Chrome and Edge. On by default; turn off for better performance.', lensButton));
     lensButton.onclick = async function() {
       lensButton.disabled = true;
       try { await settings.set('glassMagnification', settings.get('glassMagnification') !== true); }

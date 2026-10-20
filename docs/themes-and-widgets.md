@@ -1,10 +1,16 @@
 # Themes and desktop widgets
 
-Choose a coordinated theme in **Settings → Appearance**: Galaxy, Clear Ice,
-Arctic, Midnight, Forest, Rose, or Ember. Each preset supplies a wallpaper,
+Choose a coordinated theme in **Settings → Appearance**: Clear Ice, Clear Ice
+Light, Galaxy, Arctic, Midnight, Forest, Rose, or Ember. Each preset supplies a wallpaper,
 accent, and coordinated window, menu, taskbar, and control colors. Every palette
 has light and dark variants. Accent, wallpaper, and transparency can still be
 changed individually after selecting a preset.
+
+New profiles default to Clear Ice with its dark wallpaper and blue accent.
+Onboarding's Dark and Light choices apply Clear Ice and Clear Ice Light
+respectively, including the matching wallpaper, palette, and accent. The Dark
+Mode switch also pairs these presets and their built-in wallpapers; custom
+pictures and accent overrides are kept. Existing saved preferences are preserved.
 
 Clear Ice includes the bundled black liquid wallpaper with ice-blue lighting.
 The wallpaper is stored as `builtin:clear-ice` in preferences and resolved
@@ -38,7 +44,7 @@ without backdrop filters receive solid surfaces. Masked rims have a shadow-only
 fallback when mask compositing is unavailable.
 
 Clear Ice offers an experimental **Glass magnification** switch in Appearance,
-off by default. It simulates **curved glass refraction** in Chromium browsers
+on by default for new profiles. It simulates **curved glass refraction** in Chromium browsers
 (including Chrome and Edge): gentle center magnification and a nonlinear bend
 near the rounded rim. The bend follows each surface's dimensions and corner
 radii, tapers to zero at the boundary, and stays within 6.4 CSS pixels. Center

@@ -7,18 +7,18 @@
  * so the rest of the OS can react to setting changes live.
  */
 
-import { themeColors, resolveWallpaper } from './themes.js';
+import { themeColors, resolveWallpaper, DEFAULT_THEME } from './themes.js';
 
 const DEFAULTS = {
-  themeId: 'classic',
+  themeId: DEFAULT_THEME.id,
   desktopWidgets: [],
-  accent:     '#0078d4',
-  wallpaper:  'linear-gradient(135deg, #0f0c29, #302b63, #24243e)',
+  accent:     DEFAULT_THEME.accent,
+  wallpaper:  DEFAULT_THEME.wallpaper,
   font:       "'Segoe UI', system-ui, sans-serif",
   darkMode:   true,
   transparency: true,
   clearIce: true,
-  glassMagnification: false,
+  glassMagnification: true,
   glassBlur: 16,
   glassTint: 44,
   showClock:  true,
