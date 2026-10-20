@@ -33,6 +33,7 @@ import { registerTerminal }     from './shell/terminal.js';
 import { registerSysMonitor }   from './shell/sysmonitor.js';
 import { registerPaint }        from './shell/paint.js';
 import { registerImageViewer } from './shell/imageviewer.js';
+import { registerVideoPlayer } from './shell/videoplayer.js';
 import { registerCalendarApp, registerClockApp } from './shell/calendar-clock.js';
 import { Desktop }        from './shell/desktop.js';
 import { Taskbar }       from './shell/taskbar.js';
@@ -227,6 +228,7 @@ async function boot() {
     registerSysMonitor({ wm, db, kernel, settings, fs });
     registerPaint({ wm, fs });
     registerImageViewer({ wm, fs });
+    registerVideoPlayer({ wm, fs });
     registerCalendarApp({ wm, db });
     registerClockApp({ wm });
 
