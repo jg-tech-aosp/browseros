@@ -1,4 +1,4 @@
-# BrowserOS 3 ALPHA
+# BrowserOS 3 PRE-RELEASE
 
 **Your desktop, in a browser tab.** BrowserOS is a playful, browser-based desktop environment with windows, apps, a taskbar, a Start menu, and a virtual filesystem of its own.
 
