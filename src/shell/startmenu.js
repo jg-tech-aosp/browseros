@@ -22,6 +22,13 @@ export class StartMenu {
 
   boot() {
     this._build();
+    // The logo is a child of the Start button, so check the whole button.
+    // Keep one outside-click handler instead of adding one on every opening.
+    document.addEventListener('mousedown', event => {
+      const startButton = document.getElementById('wm-start-btn');
+      if (this._open && !this._el.contains(event.target) &&
+          !startButton?.contains(event.target)) this.close();
+    });
     document.addEventListener('bos:profileChanged', event => {
       const nameEl = document.getElementById('bos-startmenu-user-name');
       if (nameEl) nameEl.textContent = event.detail?.name || 'User';
@@ -149,16 +156,7 @@ export class StartMenu {
     this._searchInput.value = '';
     await this._renderDefault();
     if (!this._open) return;
-    setTimeout(() => {
-      this._searchInput.focus();
-      const close = e => {
-        if (!this._el.contains(e.target) && e.target.id !== 'wm-start-btn') {
-          this.close();
-          document.removeEventListener('mousedown', close);
-        }
-      };
-      document.addEventListener('mousedown', close);
-    }, 0);
+    this._searchInput.focus();
   }
 
   close() {
