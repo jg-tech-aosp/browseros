@@ -183,6 +183,8 @@ export function registerClockApp({ wm }) {
       let timerRunning = false;
       let tick = null;
       let destroyed = false;
+      let lastClockSecond = -1;
+      let lastTimerSecond = -1;
       let laps = [];
 
       function setTab(tab) {
@@ -284,11 +286,18 @@ export function registerClockApp({ wm }) {
           const start = makeButton(timerRunning ? 'Running…' : 'Start timer');
           start.disabled = timerRunning;
           start.onclick = () => {
-            const total = Math.max(0, Number(minutes.value) * 60 + Number(seconds.value));
+            const mins = minutes.valueAsNumber;
+            const secs = seconds.valueAsNumber;
+            if (!Number.isFinite(mins) || !Number.isFinite(secs) || mins < 0 || mins > 999 || secs < 0 || secs > 59) {
+              wm.notify('Enter a valid timer duration');
+              return;
+            }
+            const total = mins * 60 + secs;
             if (!total) { wm.notify('Set a timer longer than zero seconds'); return; }
             timerRemaining = total * 1000;
             timerEndsAt = Date.now() + timerRemaining;
             timerRunning = true;
+            lastTimerSecond = -1;
             render();
           };
           const cancel = makeButton('Cancel');
@@ -301,15 +310,22 @@ export function registerClockApp({ wm }) {
 
       tick = setInterval(() => {
         if (destroyed) return;
-        if (active === 'clock') render();
+        if (active === 'clock') {
+          const second = Math.floor(Date.now() / 1000);
+          if (second !== lastClockSecond) { lastClockSecond = second; render(); }
+        }
         if (active === 'stopwatch' && stopwatchRunning) render();
         if (active === 'timer' && timerRunning) {
           timerRemaining = Math.max(0, timerEndsAt - Date.now());
+          const second = Math.ceil(timerRemaining / 1000);
           if (timerRemaining === 0) {
             timerRunning = false;
             wm.notify('Timer finished');
           }
-          render();
+          if (second !== lastTimerSecond || timerRemaining === 0) {
+            lastTimerSecond = second;
+            render();
+          }
         }
       }, 100);
       setTab('clock');
