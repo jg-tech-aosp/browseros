@@ -113,7 +113,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
       function fileIcon(name, type) {
         if (type === 'dir') return '📁';
         const ext = name.split('.').pop().toLowerCase();
-        const map = { txt:'📄', md:'📄', js:'📜', html:'🌐', css:'🎨', json:'📋', png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', mp3:'🎵', pdf:'📕', beep:'⚡' };
+        const map = { txt:'📄', md:'📄', js:'📜', html:'🌐', css:'🎨', json:'📋', png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', mp3:'🎵', mp4:'🎬', webm:'🎬', m4v:'🎬', mov:'🎬', ogv:'🎬', pdf:'📕', beep:'⚡' };
         return map[ext] || '📄';
       }
 
