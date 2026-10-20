@@ -330,6 +330,138 @@ export class Taskbar {
     tray.appendChild(qsBtn);
 
     clock.parentNode.insertBefore(tray, clock);
+    clock.style.cursor = 'pointer';
+    clock.tabIndex = 0;
+    clock.setAttribute('role', 'button');
+    clock.setAttribute('aria-haspopup', 'dialog');
+    clock.setAttribute('aria-label', 'Open calendar and clock');
+    clock.title = 'Calendar and Clock';
+    clock.addEventListener('click', () => this._toggleCalendarClockFlyout());
+    clock.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        this._toggleCalendarClockFlyout();
+      }
+    });
+  }
+
+  _toggleCalendarClockFlyout() {
+    const existing = document.getElementById('bos-calendar-clock-panel');
+    if (existing) {
+      if (existing.dataset.closing) {
+        clearTimeout(existing._flyoutCloseTimer);
+        existing.remove();
+      } else {
+        this._closeFlyout(existing);
+        return;
+      }
+    }
+
+    const panel = document.createElement('div');
+    panel.id = 'bos-calendar-clock-panel';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', 'Calendar and clock');
+    panel.classList.add('bos-flyout-opening');
+    panel.style.cssText = 'position:fixed;right:8px;bottom:calc(var(--wm-taskbar-h) + 8px);width:320px;padding:14px;background:var(--wm-panel-bg);backdrop-filter:var(--wm-backdrop-filter,blur(20px));border:1px solid var(--wm-panel-border);border-radius:12px;box-shadow:0 10px 34px rgba(0,0,0,.42);z-index:9100;color:var(--wm-text);font-family:var(--wm-font);';
+    let selected = new Date();
+    let month = new Date(selected.getFullYear(), selected.getMonth(), 1);
+
+    const keyOf = date => date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+    const time = document.createElement('div');
+    time.style.cssText = 'font-size:27px;font-weight:300;font-variant-numeric:tabular-nums';
+    const dateLabel = document.createElement('div');
+    dateLabel.style.cssText = 'font-size:12px;color:var(--wm-text-dim);margin:1px 0 12px';
+    const monthBar = document.createElement('div');
+    monthBar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:7px';
+    const monthName = document.createElement('strong');
+    monthName.style.fontSize = '13px';
+    const previous = document.createElement('button');
+    const next = document.createElement('button');
+    [previous, next].forEach(button => {
+      button.type = 'button';
+      button.style.cssText = 'border:0;border-radius:5px;background:var(--wm-control-bg);color:var(--wm-text);width:28px;height:26px;cursor:pointer;font-size:17px';
+    });
+    previous.textContent = '‹'; previous.title = 'Previous month';
+    next.textContent = '›'; next.title = 'Next month';
+    monthBar.append(previous, monthName, next);
+
+    const week = document.createElement('div');
+    week.style.cssText = 'display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;color:var(--wm-text-dim);font-size:10px;margin-bottom:3px';
+    ['M','T','W','T','F','S','S'].forEach(label => {
+      const cell = document.createElement('div'); cell.textContent = label; week.appendChild(cell);
+    });
+    const days = document.createElement('div');
+    days.style.cssText = 'display:grid;grid-template-columns:repeat(7,1fr);gap:3px';
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:8px;margin-top:12px';
+    const openCalendar = document.createElement('button');
+    const openClock = document.createElement('button');
+    [openCalendar, openClock].forEach(button => {
+      button.type = 'button';
+      button.style.cssText = 'flex:1;border:1px solid var(--wm-control-border);border-radius:7px;padding:7px;background:var(--wm-control-bg);color:var(--wm-text);cursor:pointer;font:inherit;font-size:12px';
+    });
+    openCalendar.textContent = '📅 Open Calendar';
+    openClock.textContent = '🕒 Open Clock';
+    actions.append(openCalendar, openClock);
+    panel.append(time, dateLabel, monthBar, week, days, actions);
+
+    const renderDays = () => {
+      monthName.textContent = month.toLocaleDateString([], { month: 'long', year: 'numeric' });
+      days.innerHTML = '';
+      const first = new Date(month.getFullYear(), month.getMonth(), 1);
+      const offset = (first.getDay() + 6) % 7;
+      const count = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+      for (let i = 0; i < offset; i++) days.appendChild(document.createElement('span'));
+      const todayKey = keyOf(new Date());
+      for (let day = 1; day <= count; day++) {
+        const date = new Date(month.getFullYear(), month.getMonth(), day);
+        const key = keyOf(date);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = String(day);
+        button.setAttribute('aria-label', date.toLocaleDateString([], { dateStyle: 'full' }));
+        button.style.cssText = 'height:31px;border:1px solid ' + (key === keyOf(selected) ? 'var(--wm-accent)' : 'transparent') +
+          ';border-radius:6px;background:' + (key === keyOf(selected) ? 'var(--wm-accent)' : key === todayKey ? 'var(--wm-control-hover)' : 'transparent') +
+          ';color:' + (key === keyOf(selected) ? '#fff' : 'var(--wm-text)') + ';cursor:pointer;font:inherit;font-size:12px';
+        button.onclick = () => { selected = date; renderDays(); };
+        days.appendChild(button);
+      }
+    };
+    previous.onclick = () => { month = new Date(month.getFullYear(), month.getMonth() - 1, 1); renderDays(); };
+    next.onclick = () => { month = new Date(month.getFullYear(), month.getMonth() + 1, 1); renderDays(); };
+    openCalendar.onclick = () => {
+      const date = keyOf(selected);
+      this._closeFlyout(panel);
+      this._wm.openSystemApp('calendar', { date });
+    };
+    openClock.onclick = () => {
+      this._closeFlyout(panel);
+      this._wm.openSystemApp('clock');
+    };
+    const updateClock = () => {
+      const now = new Date();
+      time.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      dateLabel.textContent = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      if (keyOf(now) !== keyOf(selected) && selected.toDateString() === new Date().toDateString()) {
+        selected = now;
+        month = new Date(now.getFullYear(), now.getMonth(), 1);
+        renderDays();
+      }
+    };
+    renderDays();
+    updateClock();
+    panel._clockTimer = setInterval(updateClock, 1000);
+    document.body.appendChild(panel);
+
+    setTimeout(() => {
+      const close = event => {
+        if (!panel.contains(event.target) && event.target !== document.getElementById('wm-clock')) {
+          this._closeFlyout(panel);
+        }
+      };
+      panel._outsideClose = close;
+      document.addEventListener('click', close);
+    }, 0);
   }
 
   // ─── Notification center ───────────────────────────────────────────────────
@@ -357,6 +489,14 @@ export class Taskbar {
 
   _closeFlyout(panel) {
     if (!panel || panel.dataset.closing) return;
+    if (panel._outsideClose) {
+      document.removeEventListener('click', panel._outsideClose);
+      panel._outsideClose = null;
+    }
+    if (panel._clockTimer) {
+      clearInterval(panel._clockTimer);
+      panel._clockTimer = null;
+    }
     if (document.documentElement.classList.contains('bos-reduce-motion')) {
       panel.remove();
       return;
