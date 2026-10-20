@@ -362,7 +362,8 @@ export class Taskbar {
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-label', 'Calendar and clock');
     panel.classList.add('bos-flyout-opening');
-    panel.style.cssText = 'position:fixed;right:8px;bottom:calc(var(--wm-taskbar-h) + 8px);width:320px;padding:14px;background:var(--wm-panel-bg);backdrop-filter:var(--wm-backdrop-filter,blur(20px));border:1px solid var(--wm-panel-border);border-radius:12px;box-shadow:0 10px 34px rgba(0,0,0,.42);z-index:9100;color:var(--wm-text);font-family:var(--wm-font);';
+    panel.style.cssText = 'position:fixed;right:8px;bottom:calc(var(--wm-taskbar-h) + 8px);width:320px;max-height:min(78vh,680px);overflow-y:auto;padding:14px;background:var(--wm-panel-bg);backdrop-filter:var(--wm-backdrop-filter,blur(20px));border:1px solid var(--wm-panel-border);border-radius:12px;box-shadow:0 10px 34px rgba(0,0,0,.42);z-index:9100;color:var(--wm-text);font-family:var(--wm-font);';
+    panel.addEventListener('click', event => event.stopPropagation());
     let selected = new Date();
     let month = new Date(selected.getFullYear(), selected.getMonth(), 1);
     let followsToday = true;
@@ -393,6 +394,27 @@ export class Taskbar {
     });
     const days = document.createElement('div');
     days.style.cssText = 'display:grid;grid-template-columns:repeat(7,1fr);gap:3px';
+    const selectedDay = document.createElement('div');
+    selectedDay.style.cssText = 'font-size:13px;font-weight:600;margin:10px 0 6px';
+    const eventList = document.createElement('div');
+    eventList.style.cssText = 'display:flex;flex-direction:column;gap:5px';
+    const addEvent = document.createElement('button');
+    addEvent.type = 'button';
+    addEvent.textContent = '+ Event';
+    addEvent.style.cssText = 'margin-top:7px;border:0;border-radius:6px;padding:5px 8px;background:transparent;color:var(--wm-accent);cursor:pointer;font:inherit;font-size:12px';
+    const eventForm = document.createElement('form');
+    eventForm.style.cssText = 'display:none;gap:6px;margin-top:6px';
+    const eventName = document.createElement('input');
+    eventName.type = 'text';
+    eventName.maxLength = 120;
+    eventName.placeholder = 'Event name';
+    eventName.setAttribute('aria-label', 'Event name');
+    eventName.style.cssText = 'flex:1;min-width:0;border:1px solid var(--wm-control-border);border-radius:6px;padding:6px;background:var(--wm-control-bg);color:var(--wm-text);font:inherit;font-size:12px';
+    const saveEvent = document.createElement('button');
+    saveEvent.type = 'submit';
+    saveEvent.textContent = 'Save';
+    saveEvent.style.cssText = 'border:1px solid var(--wm-control-border);border-radius:6px;padding:5px 8px;background:var(--wm-control-bg);color:var(--wm-text);cursor:pointer;font:inherit;font-size:12px';
+    eventForm.append(eventName, saveEvent);
     const actions = document.createElement('div');
     actions.style.cssText = 'display:flex;gap:8px;margin-top:12px';
     const openCalendar = document.createElement('button');
@@ -404,7 +426,72 @@ export class Taskbar {
     openCalendar.textContent = '📅 Open Calendar';
     openClock.textContent = '🕒 Open Clock';
     actions.append(openCalendar, openClock);
-    panel.append(time, dateLabel, monthBar, week, days, actions);
+    panel.append(time, dateLabel, monthBar, week, days, selectedDay, eventList, addEvent, eventForm, actions);
+
+    let events = {};
+    let eventsReady = false;
+    const renderEvents = () => {
+      selectedDay.textContent = selected.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+      eventList.innerHTML = '';
+      const dayKey = keyOf(selected);
+      const list = events[dayKey] || [];
+      if (!eventsReady) {
+        const loading = document.createElement('div');
+        loading.textContent = 'Loading events…';
+        loading.style.cssText = 'font-size:11px;color:var(--wm-text-dim)';
+        eventList.appendChild(loading);
+        return;
+      }
+      if (!list.length) {
+        const empty = document.createElement('div');
+        empty.textContent = 'No events';
+        empty.style.cssText = 'font-size:11px;color:var(--wm-text-dim)';
+        eventList.appendChild(empty);
+      } else {
+        list.forEach(item => {
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:5px 7px;border:1px solid var(--wm-border);border-radius:6px;background:var(--wm-control-bg);font-size:12px';
+          const title = document.createElement('span');
+          title.textContent = item.title;
+          title.style.cssText = 'flex:1;overflow-wrap:anywhere';
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.textContent = '×';
+          remove.title = 'Remove event';
+          remove.style.cssText = 'border:0;background:transparent;color:var(--wm-text-dim);cursor:pointer;font-size:16px';
+          remove.onclick = async event => {
+            event.stopPropagation();
+            events[dayKey] = (events[dayKey] || []).filter(eventItem => eventItem.id !== item.id);
+            if (!events[dayKey].length) delete events[dayKey];
+            await this._db.settings.set('calendarEvents', events);
+            renderEvents();
+          };
+          row.append(title, remove);
+          eventList.appendChild(row);
+        });
+      }
+    };
+    addEvent.onclick = event => {
+      event.stopPropagation();
+      addEvent.style.display = 'none';
+      eventForm.style.display = 'flex';
+      eventName.focus();
+    };
+    eventForm.onsubmit = async event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const title = eventName.value.trim();
+      if (!title) { eventName.focus(); return; }
+      const dayKey = keyOf(selected);
+      events[dayKey] ||= [];
+      events[dayKey].push({ id: crypto.randomUUID?.() || Date.now() + '-' + Math.random(), title });
+      await this._db.settings.set('calendarEvents', events);
+      eventName.value = '';
+      eventForm.style.display = 'none';
+      addEvent.style.display = '';
+      renderEvents();
+    };
+    addEvent.addEventListener('click', event => event.stopPropagation());
 
     const renderDays = () => {
       monthName.textContent = month.toLocaleDateString([], { month: 'long', year: 'numeric' });
@@ -424,10 +511,15 @@ export class Taskbar {
         button.style.cssText = 'height:31px;border:1px solid ' + (key === keyOf(selected) ? 'var(--wm-accent)' : 'transparent') +
           ';border-radius:6px;background:' + (key === keyOf(selected) ? 'var(--wm-accent)' : key === todayKey ? 'var(--wm-control-hover)' : 'transparent') +
           ';color:' + (key === keyOf(selected) ? '#fff' : 'var(--wm-text)') + ';cursor:pointer;font:inherit;font-size:12px';
-        button.onclick = () => {
+        button.onclick = event => {
+          event.stopPropagation();
           selected = date;
           followsToday = keyOf(date) === keyOf(new Date());
+          addEvent.style.display = '';
+          eventForm.style.display = 'none';
+          eventName.value = '';
           renderDays();
+          renderEvents();
         };
         days.appendChild(button);
       }
@@ -451,12 +543,24 @@ export class Taskbar {
         selected = now;
         month = new Date(now.getFullYear(), now.getMonth(), 1);
         renderDays();
+        renderEvents();
       }
     };
     renderDays();
+    renderEvents();
     updateClock();
     panel._clockTimer = setInterval(updateClock, 1000);
     document.body.appendChild(panel);
+    this._db.settings.get('calendarEvents').then(saved => {
+      if (!panel.isConnected) return;
+      events = saved || {};
+      eventsReady = true;
+      renderEvents();
+    }).catch(error => {
+      console.error('[taskbar] Could not load calendar events:', error);
+      eventsReady = true;
+      renderEvents();
+    });
 
     setTimeout(() => {
       const close = event => {
