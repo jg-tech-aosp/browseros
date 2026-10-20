@@ -315,14 +315,14 @@ export function registerClockApp({ wm }) {
           if (second !== lastClockSecond) { lastClockSecond = second; render(); }
         }
         if (active === 'stopwatch' && stopwatchRunning) render();
-        if (active === 'timer' && timerRunning) {
+        if (timerRunning) {
           timerRemaining = Math.max(0, timerEndsAt - Date.now());
           const second = Math.ceil(timerRemaining / 1000);
           if (timerRemaining === 0) {
             timerRunning = false;
             wm.notify('Timer finished');
           }
-          if (second !== lastTimerSecond || timerRemaining === 0) {
+          if (active === 'timer' && (second !== lastTimerSecond || timerRemaining === 0)) {
             lastTimerSecond = second;
             render();
           }
