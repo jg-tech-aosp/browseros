@@ -421,6 +421,19 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     var ranges = [];
     var blur = makeRange('Blur', 'glassBlur', 0, 40, 16, 'Clearer', 'Blurrier', ' px');
     var tint = makeRange('Surface tint', 'glassTint', 0, 100, 44, 'More transparent', 'More solid', '%');
+    var lensButton = document.createElement('button');
+    lensButton.type = 'button';
+    lensButton.id = 'bos-glass-magnification-toggle';
+    lensButton.setAttribute('role', 'switch');
+    lensButton.setAttribute('aria-label', 'Glass magnification');
+    lensButton.style.cssText = switchButton.style.cssText;
+    controls.appendChild(row('Glass magnification', 'Experimental 2% zoom in Chrome and Edge. Can make movement and animations stutter. Off by default.', lensButton));
+    lensButton.onclick = async function() {
+      lensButton.disabled = true;
+      try { await settings.set('glassMagnification', settings.get('glassMagnification') !== true); }
+      catch (_) { wm.notify('Could not save glass magnification setting'); }
+      finally { refresh(); }
+    };
     group.appendChild(controls); main.appendChild(group);
 
     function previewPreferences() {
@@ -459,6 +472,9 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
       switchButton.setAttribute('aria-checked', String(enabled));
       switchButton.style.opacity = transparent ? '1' : '.5';
       blur.disabled = tint.disabled = !transparent || !enabled;
+      lensButton.disabled = !transparent || !enabled;
+      lensButton.textContent = settings.get('glassMagnification') === true ? 'On' : 'Off';
+      lensButton.setAttribute('aria-checked', String(settings.get('glassMagnification') === true));
       controls.classList.toggle('bos-ice-disabled', !transparent || !enabled);
       ranges.forEach(function(range) {
         range.input.value = boundedNumber(settings.get(range.key), range.fallback, range.min, range.max);
@@ -473,7 +489,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     };
     refresh();
     var onSetting = function(_theme, key) {
-      if (key == null || ['transparency', 'clearIce', 'glassBlur', 'glassTint'].includes(key)) refresh();
+      if (key == null || ['transparency', 'clearIce', 'glassBlur', 'glassTint', 'glassMagnification'].includes(key)) refresh();
     };
     settings.onChange(onSetting);
     main._iceCleanup = function() { settings.offChange(onSetting); };

@@ -18,6 +18,7 @@ const DEFAULTS = {
   darkMode:   true,
   transparency: true,
   clearIce: true,
+  glassMagnification: false,
   glassBlur: 16,
   glassTint: 44,
   showClock:  true,
@@ -63,6 +64,7 @@ export class Settings {
       darkMode:  this._cache.darkMode,
       transparency: this._cache.transparency,
       clearIce: this._cache.clearIce,
+      glassMagnification: this._cache.glassMagnification,
       glassBlur: this._cache.glassBlur,
       glassTint: this._cache.glassTint,
     };

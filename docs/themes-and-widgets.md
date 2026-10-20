@@ -37,8 +37,12 @@ it does not require screen capture or access to sandboxed app content. Browsers
 without backdrop filters receive solid surfaces. Masked rims have a shadow-only
 fallback when mask compositing is unavailable.
 
-Clear Ice also adds a static **2% backdrop magnification** in Chromium browsers
-(including Chrome and Edge). Text, controls, and pointer hit areas are unchanged.
+Clear Ice offers an experimental **Glass magnification** switch in Appearance,
+off by default. It adds static **2% backdrop magnification** in Chromium browsers
+(including Chrome and Edge). SVG displacement can make window movement and menu
+animations stutter; leave it off for the normal CSS glass rendering. Disabling
+the switch removes the lens filters and their observers immediately. Text,
+controls, and pointer hit areas are unchanged.
 It is easiest to see at lower Blur settings. Other browser engines retain the
 normal glass backdrop because SVG backdrop filters are not enabled there.
 Each surface's filter adjusts for its aspect ratio and is released when the

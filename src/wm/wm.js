@@ -1296,7 +1296,7 @@ export class WindowManager {
     }
   }
 
-  applyTheme({ accent, font, darkMode, wallpaper, transparency, themeId, clearIce, glassBlur, glassTint }) {
+  applyTheme({ accent, font, darkMode, wallpaper, transparency, themeId, clearIce, glassBlur, glassTint, glassMagnification }) {
     const r = document.documentElement;
     if (accent)    r.style.setProperty('--wm-accent', accent);
     if (font)      r.style.setProperty('--wm-font',   font);
@@ -1324,7 +1324,7 @@ export class WindowManager {
       }
     }
     if (darkMode !== undefined) {
-      this.applyGlassPreferences({ themeId, darkMode, transparency, clearIce, glassBlur, glassTint });
+      this.applyGlassPreferences({ themeId, darkMode, transparency, clearIce, glassBlur, glassTint, glassMagnification });
       r.style.colorScheme = darkMode ? 'dark' : 'light';
     }
   }
