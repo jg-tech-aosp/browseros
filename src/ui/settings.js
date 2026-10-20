@@ -62,6 +62,7 @@ export class Settings {
       wallpaper: resolveWallpaper(this._cache.wallpaper, this._cache.darkMode),
       font:      this._cache.font,
       darkMode:  this._cache.darkMode,
+      reduceMotion: this._cache.reduceMotion,
       transparency: this._cache.transparency,
       clearIce: this._cache.clearIce,
       glassMagnification: this._cache.glassMagnification,
@@ -143,5 +144,7 @@ export class Settings {
     this._handlers = this._handlers.filter(h => h !== fn);
   }
 }
+
+
 
 

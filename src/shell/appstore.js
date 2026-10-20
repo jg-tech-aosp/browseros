@@ -183,6 +183,14 @@ export function registerAppStore({ wm, fs, db, launcher }) {
           if (app.version && String(manifest.version) !== String(app.version)) {
             throw new Error('Store lists v' + app.version + ', but the package manifest says v' + manifest.version);
           }
+          const declared = manifest.fileTypes ?? [];
+          if (!Array.isArray(declared)) throw new Error('Invalid manifest fileTypes');
+          const fileTypes = [...new Set(declared.map(extension => {
+            if (typeof extension !== 'string') throw new Error('Invalid file association');
+            const type = '.' + extension.trim().toLowerCase().replace(/^\./, '');
+            if (!/^\.[a-z0-9][a-z0-9.+_-]*$/.test(type)) throw new Error('Invalid file association: ' + extension);
+            return type;
+          }))];
           const requestedPermissions = Array.isArray(manifest.permissions) ? manifest.permissions : [];
           if (!confirmPermissionGrant(manifest.name || app.name, requestedPermissions)) {
             if (wasInstalled) {
@@ -218,6 +226,7 @@ export function registerAppStore({ wm, fs, db, launcher }) {
             requestedPermissions,
             storageId:   keepAppData ? previous.storageId : createStorageId(),
             permissionDecisionVersion: 1,
+            fileTypes,
             events:      manifest.events      || [],
             entry:       manifest.entry,
             bos:         manifest.bos,
@@ -301,3 +310,5 @@ export function registerAppStore({ wm, fs, db, launcher }) {
     }
   });
 }
+
+
