@@ -13,7 +13,7 @@ export function iceVariables({ colors, darkMode, glassBlur, glassTint }) {
   const blur = boundedNumber(glassBlur, 16, 0, 40);
   const tint = boundedNumber(glassTint, 44, 0, 100) / 100;
   const opacity = darkMode ? .22 + tint * .64 : .34 + tint * .58;
-  const rim = darkMode ? 'rgba(224,246,255,.43)' : 'rgba(255,255,255,.92)';
+  const rim = darkMode ? 'rgba(205,225,240,.18)' : 'rgba(32,62,84,.18)';
   return {
     '--wm-backdrop-filter': 'blur(' + blur + 'px) saturate(165%) contrast(104%)',
     '--wm-titlebar-bg': rgba(colors.titlebar, opacity),
@@ -23,12 +23,14 @@ export function iceVariables({ colors, darkMode, glassBlur, glassTint }) {
     '--wm-control-hover': darkMode ? 'rgba(255,255,255,.18)' : 'rgba(255,255,255,.64)',
     '--wm-panel-border': rim,
     '--wm-radius': '16px',
-    '--wm-ice-frame': rgba(colors.titlebar, .13 + tint * .17),
+    '--wm-ice-frame': rgba(colors.titlebar, .09 + tint * .12),
     '--wm-ice-rim': rim,
     '--wm-ice-sheen': 'linear-gradient(135deg,rgba(255,255,255,' + (darkMode ? '.15' : '.48') + '),rgba(255,255,255,.025) 38%,transparent 62%,rgba(160,215,255,.09))',
-    '--wm-ice-edge': 'linear-gradient(135deg,rgba(255,255,255,.95),rgba(200,235,255,.28) 24%,rgba(255,255,255,.035) 49%,rgba(8,31,49,.19) 66%,rgba(218,242,255,.7))',
-    '--wm-ice-shadow': 'inset 0 1px 0 rgba(255,255,255,' + (darkMode ? '.28' : '.8') + '),inset 1px 0 0 rgba(255,255,255,.13),inset 0 -1px 0 rgba(7,25,42,.16),0 16px 42px rgba(3,14,25,' + (darkMode ? '.32' : '.16') + ')',
-    '--wm-ice-control-shadow': 'inset 0 1px 0 rgba(255,255,255,' + (darkMode ? '.24' : '.8') + '),inset 0 -1px 0 rgba(0,20,40,.12),0 2px 5px rgba(0,10,25,.08)',
+    '--wm-ice-edge': darkMode
+      ? 'linear-gradient(135deg,rgba(255,255,255,.38),rgba(200,235,255,.1) 24%,transparent 49%,rgba(4,17,29,.26) 72%,rgba(218,242,255,.14))'
+      : 'linear-gradient(135deg,rgba(255,255,255,.72),rgba(255,255,255,.2) 24%,transparent 49%,rgba(20,40,60,.2) 72%,rgba(255,255,255,.25))',
+    '--wm-ice-shadow': 'inset 0 1px 0 rgba(255,255,255,' + (darkMode ? '.12' : '.48') + '),inset 0 -1px 0 rgba(7,25,42,.2),0 2px 5px rgba(3,14,25,' + (darkMode ? '.2' : '.1') + '),0 9px 22px -5px rgba(3,14,25,' + (darkMode ? '.44' : '.24') + ')',
+    '--wm-ice-control-shadow': 'inset 0 1px 0 rgba(255,255,255,' + (darkMode ? '.12' : '.42') + '),inset 0 -1px 0 rgba(0,20,40,.12),0 2px 5px rgba(0,10,25,.08)',
     '--wm-ice-text-shadow': darkMode ? '0 1px 3px rgba(0,8,18,.55)' : '0 1px 1px rgba(255,255,255,.55)',
   };
 }
@@ -37,25 +39,25 @@ const panels = ':is(#bos-startmenu,#bos-startmenu-app-menu,#bos-ctx-menu,#bos-ca
 
 const STYLES = `
   /* The shell already uses translucent colors and backdrop-filter variables.
-     These optical layers add a bright rim, directional reflections, and depth.
+     These optical layers add a subtle rim, directional reflections, and depth.
      Fixed selectors intentionally override existing shell inline decoration. */
   .bos-clear-ice .wm-window {
-    padding:4px; background-color:var(--wm-ice-frame); background-image:var(--wm-ice-sheen);
+    padding:2px; background-color:var(--wm-ice-frame); background-image:var(--wm-ice-sheen);
     border-color:var(--wm-ice-rim); box-shadow:var(--wm-ice-shadow);
   }
-  .bos-clear-ice .wm-window.focused { box-shadow:var(--wm-ice-shadow),0 0 0 1px color-mix(in srgb,var(--wm-accent) 65%,transparent); }
+  .bos-clear-ice .wm-window.focused { box-shadow:var(--wm-ice-shadow),0 0 0 1px color-mix(in srgb,var(--wm-accent) 30%,transparent); }
   .bos-clear-ice .wm-window:is(.maximized,.wm-snapped) { padding:0; border-radius:0; }
   .bos-clear-ice .wm-titlebar {
-    position:relative; border-radius:11px 11px 0 0; background-image:var(--wm-ice-sheen);
-    border-bottom-color:var(--wm-separator); box-shadow:inset 0 1px 0 rgba(255,255,255,.2);
+    position:relative; border-radius:13px 13px 0 0; background-image:var(--wm-ice-sheen);
+    border-bottom-color:var(--wm-separator); box-shadow:inset 0 1px 0 rgba(255,255,255,.1);
     -webkit-backdrop-filter:var(--wm-backdrop-filter); text-shadow:var(--wm-ice-text-shadow);
   }
   .bos-clear-ice .wm-window:is(.maximized,.wm-snapped) .wm-titlebar { border-radius:0; }
-  .bos-clear-ice .wm-window > [id^="wm-body-"] { border-radius:0 0 11px 11px; }
+  .bos-clear-ice .wm-window > [id^="wm-body-"] { border-radius:0 0 13px 13px; }
   .bos-clear-ice .wm-window:is(.maximized,.wm-snapped) > [id^="wm-body-"] { border-radius:0; }
   .bos-clear-ice #wm-taskbar {
     background-image:var(--wm-ice-sheen); border-top-color:var(--wm-ice-rim);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 -5px 25px rgba(0,15,30,.12);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 -3px 12px rgba(0,15,30,.16);
     -webkit-backdrop-filter:var(--wm-backdrop-filter);
   }
   .bos-clear-ice ${panels} {
@@ -67,7 +69,7 @@ const STYLES = `
      It needs no copied app DOM, canvas capture, WebGL loop, or filter texture. */
   @supports (mask-composite:exclude) or (-webkit-mask-composite:xor) {
   .bos-clear-ice :is(.wm-window,${panels})::after {
-    content:''; position:absolute; inset:0; border-radius:inherit; padding:1.5px;
+    content:''; position:absolute; inset:0; border-radius:inherit; padding:1px;
     background:var(--wm-ice-edge); pointer-events:none; z-index:4;
     -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
     mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
