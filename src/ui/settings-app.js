@@ -14,6 +14,7 @@
 import { THEMES, WALLPAPERS, resolveWallpaper, DEFAULT_THEME, DEFAULT_LIGHT_THEME } from './themes.js';
 import { availableWidgets, setWidgetEnabled } from '../shell/widgets.js';
 import { boundedNumber } from './clear-ice.js';
+import { styleNativeApp } from './native-layout.js';
 
 const DEBUG_LOG_LIMIT = 500;
 const DEBUG_LOGS = [];
@@ -60,11 +61,12 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     width:  720,
     height: 520,
     mount(container, instanceId, args = {}) {
-      container.style.cssText = 'display:flex;height:100%;overflow:hidden;background:var(--wm-bg);color:var(--wm-text)';
+      styleNativeApp(container, 'settings');
 
       // ── Sidebar ─────────────────────────────────────────────────────────────
-      var sidebar = document.createElement('div');
-      sidebar.style.cssText = 'width:200px;background:rgba(0,0,0,0.2);border-right:1px solid var(--wm-border);padding:8px;flex-shrink:0;overflow-y:auto';
+      var sidebar = document.createElement('nav');
+      sidebar.className = 'bos-native-sidebar';
+      sidebar.setAttribute('aria-label', 'Settings sections');
 
       var SECTIONS = [
         { id:'appearance', label:'🎨 Appearance' },
@@ -78,26 +80,23 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
       ];
 
       var main = document.createElement('div');
-      main.style.cssText = 'flex:1;overflow-y:auto;padding:24px';
+      main.className = 'bos-native-settings-main';
 
       SECTIONS.forEach(function(sec) {
-        var btn = document.createElement('div');
-        btn.style.cssText = 'padding:8px 12px;border-radius:6px;cursor:pointer;font-size:13px;margin-bottom:2px;transition:background 0.1s';
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bos-native-nav-item';
         btn.textContent = sec.label;
         btn.dataset.section = sec.id;
         btn.onclick = function() {
           sidebar.querySelectorAll('[data-active]').forEach(function(b) {
             b.removeAttribute('data-active');
-            b.style.background = '';
-            b.style.color = 'var(--wm-text)';
+            b.removeAttribute('aria-current');
           });
           btn.setAttribute('data-active', '1');
-          btn.style.background = 'rgba(0,120,212,0.25)';
-          btn.style.color = 'var(--wm-accent)';
+          btn.setAttribute('aria-current', 'page');
           renderSection(sec.id, main);
         };
-        btn.onmouseenter = function() { if (!btn.hasAttribute('data-active')) btn.style.background = 'rgba(255,255,255,0.06)'; };
-        btn.onmouseleave = function() { if (!btn.hasAttribute('data-active')) btn.style.background = ''; };
         sidebar.appendChild(btn);
       });
 

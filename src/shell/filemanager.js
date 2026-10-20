@@ -1,5 +1,6 @@
 import { isImageFile } from './imageviewer.js';
 import { filesWidget } from './widgets.js';
+import { styleNativeApp } from '../ui/native-layout.js';
 
 const TRASH_VIEW = '::recycle-bin::';
 
@@ -26,30 +27,28 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
       let selected = null;
       let clipboard = null;
 
-      container.style.cssText = 'display:flex;flex-direction:column;height:100%;overflow:hidden;background:var(--wm-bg);color:var(--wm-text)';
+      styleNativeApp(container, 'files');
 
       // ── Toolbar ──────────────────────────────────────────────────────────────
       const toolbar = document.createElement('div');
-      toolbar.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 8px;background:rgba(0,0,0,0.2);border-bottom:1px solid var(--wm-border);flex-shrink:0';
+      toolbar.className = 'bos-native-toolbar';
 
       function mkBtn(t, title) {
         const b = document.createElement('button');
+        b.type = 'button';
         b.textContent = t; b.title = title || t;
-        b.style.cssText = 'background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:var(--wm-text);padding:4px 8px;font-size:12px;cursor:pointer;transition:background 0.1s';
-        b.onmouseenter = () => b.style.background = 'rgba(255,255,255,0.15)';
-        b.onmouseleave = () => b.style.background = 'rgba(255,255,255,0.07)';
         return b;
       }
 
       const backBtn     = mkBtn('◀', 'Back');
       const upBtn       = mkBtn('▲', 'Up');
       const pathInput   = document.createElement('input');
-      pathInput.style.cssText = 'flex:1;background:var(--wm-hover);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:var(--wm-text);padding:4px 8px;font-size:12px;outline:none';
+      pathInput.className = 'bos-native-path';
+      pathInput.setAttribute('aria-label', 'Current folder');
       pathInput.readOnly = true;
       const newFolderBtn = mkBtn('+ Folder');
       const newFileBtn   = mkBtn('+ File');
       const importBtn    = mkBtn('⬆ Import', 'Import from your computer');
-      importBtn.style.cssText += ';background:rgba(0,120,212,0.2);border-color:rgba(0,120,212,0.4);color:#66aaff';
       const refreshBtn   = mkBtn('⟳', 'Refresh');
       const emptyTrashBtn = mkBtn('🗑️ Empty Bin', 'Permanently delete everything in the Recycle Bin');
       emptyTrashBtn.style.display = 'none';
@@ -61,12 +60,13 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
 
       // ── Layout ────────────────────────────────────────────────────────────────
       const layout = document.createElement('div');
-      layout.style.cssText = 'display:flex;flex:1;overflow:hidden';
+      layout.className = 'bos-native-file-layout';
       container.appendChild(layout);
 
       // Sidebar
-      const sidebar = document.createElement('div');
-      sidebar.style.cssText = 'width:160px;background:rgba(0,0,0,0.15);border-right:1px solid var(--wm-border);padding:8px;overflow-y:auto;flex-shrink:0';
+      const sidebar = document.createElement('nav');
+      sidebar.className = 'bos-native-sidebar';
+      sidebar.setAttribute('aria-label', 'File locations');
       layout.appendChild(sidebar);
 
       const SIDEBAR_ITEMS = [
@@ -83,14 +83,12 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
       function renderSidebar() {
         sidebar.innerHTML = '';
         SIDEBAR_ITEMS.forEach(item => {
-          const el = document.createElement('div');
-          el.className = 'bos-fm-sidebar-item';
+          const el = document.createElement('button');
+          el.type = 'button';
+          el.className = 'bos-fm-sidebar-item bos-native-nav-item';
           el.dataset.path = item.path;
-          el.style.cssText = 'padding:7px 8px;border-radius:4px;cursor:pointer;font-size:13px;transition:background 0.1s;' +
-            (cwd === item.path ? 'background:rgba(0,120,212,0.2);color:var(--wm-accent)' : 'color:var(--wm-text)');
+          if (cwd === item.path) el.setAttribute('aria-current', 'page');
           el.textContent = item.label;
-          el.onmouseenter = () => { if (cwd !== item.path) el.style.background = 'rgba(255,255,255,0.06)'; };
-          el.onmouseleave = () => { if (cwd !== item.path) el.style.background = ''; };
           el.onclick = () => navigate(item.path);
           sidebar.appendChild(el);
         });
@@ -98,7 +96,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
 
       // Main area
       const mainArea = document.createElement('div');
-      mainArea.style.cssText = 'flex:1;overflow:auto;display:flex;flex-direction:column;position:relative';
+      mainArea.className = 'bos-native-file-content';
       layout.appendChild(mainArea);
 
       const grid = document.createElement('div');
@@ -107,7 +105,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
 
       // Status bar
       const statusBar = document.createElement('div');
-      statusBar.style.cssText = 'padding:4px 8px;font-size:11px;color:var(--wm-text-dim);border-top:1px solid var(--wm-border);background:rgba(0,0,0,0.15);flex-shrink:0';
+      statusBar.className = 'bos-native-status';
       container.appendChild(statusBar);
 
       // ── Helpers ───────────────────────────────────────────────────────────────

@@ -64,6 +64,16 @@ optical effect, not a physical glass simulation.
 Implementation references: [backdrop-filter](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/backdrop-filter)
 and [mask-composite](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/mask-composite).
 
+## Native app sidebar islands
+
+File Manager and Settings use the shared `src/ui/native-layout.js` styles.
+Their sidebars sit inside the app with rounded corners, a subtle border and
+shadow, and an opaque shade mixed from the current palette. The content area
+keeps its solid app background. Navigation buttons follow the accent and retain
+visible keyboard focus. File Manager's toolbar uses the same rounded controls.
+The layout narrows its sidebar in small windows and scrolls each pane separately.
+These surfaces add no backdrop blur, magnification, or continuous animation.
+
 ## Desktop widgets
 
 Right-click the desktop and choose **Add widgets**, or use **Settings → Widgets**.
