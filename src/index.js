@@ -36,6 +36,7 @@ import { registerImageViewer } from './shell/imageviewer.js';
 import { registerVideoPlayer } from './shell/videoplayer.js';
 import { registerCalendarApp, registerClockApp } from './shell/calendar-clock.js';
 import { Desktop }        from './shell/desktop.js';
+import { DesktopWidgets } from './shell/widgets.js';
 import { Taskbar }       from './shell/taskbar.js';
 import { StartMenu }  from './shell/startmenu.js';
 import { Search }     from './shell/search.js';
@@ -240,6 +241,8 @@ async function boot() {
     console.log('[bos] Booting desktop...');
     const desktop = new Desktop({ fs, db, wm, launcher, kernel, settings, fileAssociations });
     await desktop.boot();
+    const widgets = new DesktopWidgets({ wm, settings, db, fs, fileAssociations });
+    widgets.boot();
 
     // ── 8. Taskbar ────────────────────────────────────────────────────────────
     console.log('[bos] Booting taskbar...');
@@ -311,3 +314,5 @@ async function boot() {
 }
 
 boot();
+
+

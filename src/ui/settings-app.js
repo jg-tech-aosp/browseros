@@ -11,6 +11,9 @@
  * Keep a bounded console history for the Developer / Debug page.
  * Original console methods still run; entries stay in memory only.
  */
+import { THEMES, WALLPAPERS, resolveWallpaper } from './themes.js';
+import { availableWidgets, setWidgetEnabled } from '../shell/widgets.js';
+
 const DEBUG_LOG_LIMIT = 500;
 const DEBUG_LOGS = [];
 function formatDebugValue(value) {
@@ -55,7 +58,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     icon:   '⚙️',
     width:  720,
     height: 520,
-    mount(container, instanceId) {
+    mount(container, instanceId, args = {}) {
       container.style.cssText = 'display:flex;height:100%;overflow:hidden;background:var(--wm-bg);color:var(--wm-text)';
 
       // ── Sidebar ─────────────────────────────────────────────────────────────
@@ -64,6 +67,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
 
       var SECTIONS = [
         { id:'appearance', label:'🎨 Appearance' },
+        { id:'widgets',    label:'🧩 Widgets' },
         { id:'display',    label:'🖥️ Display' },
         { id:'accessibility', label:'♿ Accessibility' },
         { id:'apps',       label:'📦 Apps' },
@@ -79,6 +83,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
         var btn = document.createElement('div');
         btn.style.cssText = 'padding:8px 12px;border-radius:6px;cursor:pointer;font-size:13px;margin-bottom:2px;transition:background 0.1s';
         btn.textContent = sec.label;
+        btn.dataset.section = sec.id;
         btn.onclick = function() {
           sidebar.querySelectorAll('[data-active]').forEach(function(b) {
             b.removeAttribute('data-active');
@@ -99,7 +104,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
       container.appendChild(main);
 
       // Activate first section
-      sidebar.firstChild.click();
+      (sidebar.querySelector('[data-section="' + (SECTIONS.some(section => section.id === args.section) ? args.section : 'appearance') + '"]') || sidebar.firstChild).click();
     }
   });
 
@@ -109,6 +114,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     main.innerHTML = '';
 
     if (id === 'appearance') renderAppearance(main);
+    else if (id === 'widgets') renderWidgets(main);
     else if (id === 'display')    renderDisplay(main);
     else if (id === 'accessibility') renderAccessibility(main);
     else if (id === 'apps')       renderApps(main);
@@ -165,6 +171,50 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
 
     var theme = settings.getAll();
 
+    var presetLabel = document.createElement('p');
+    presetLabel.textContent = 'Themes change the wallpaper, accent, and app colors together. You can customize each setting below.';
+    presetLabel.style.cssText = 'font-size:12px;line-height:1.5;color:var(--wm-text-dim);margin-bottom:14px';
+    main.appendChild(presetLabel);
+    var themeGrid = document.createElement('div');
+    themeGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:20px';
+    THEMES.forEach(function(preset) {
+      var card = document.createElement('button');
+      card.type = 'button';
+      card.dataset.themeId = preset.id;
+      card.title = preset.description;
+      card.setAttribute('aria-pressed', String((theme.themeId || 'classic') === preset.id));
+      card.style.cssText = 'min-width:0;padding:0;overflow:hidden;text-align:left;border:2px solid ' + ((theme.themeId || 'classic') === preset.id ? 'var(--wm-accent)' : 'var(--wm-control-border)') + ';border-radius:10px;background:var(--wm-control-bg);color:var(--wm-text);cursor:pointer;font:inherit';
+      var preview = document.createElement('div');
+      preview.style.cssText = 'height:82px;position:relative;overflow:hidden';
+      preview.style.background = resolveWallpaper(preset.wallpaper).replace(' fixed', '');
+      var palette = preset[preset.darkMode ? 'dark' : 'light'];
+      var windowPreview = document.createElement('div');
+      windowPreview.style.cssText = 'position:absolute;left:22%;right:14%;top:17px;height:46px;border-radius:5px;background:' + palette[0] + ';border:1px solid ' + palette[3] + ';overflow:hidden;box-shadow:0 3px 10px #0003';
+      var titlePreview = document.createElement('div');
+      titlePreview.style.cssText = 'height:12px;background:' + palette[1] + ';border-bottom:2px solid ' + preset.accent;
+      windowPreview.appendChild(titlePreview);
+      var taskbarPreview = document.createElement('div');
+      taskbarPreview.style.cssText = 'position:absolute;bottom:0;left:0;right:0;height:9px;background:' + palette[5];
+      preview.append(windowPreview, taskbarPreview);
+      var label = document.createElement('div');
+      label.textContent = preset.name;
+      label.style.cssText = 'padding:8px 10px;font-size:12px;font-weight:600';
+      card.append(preview, label);
+      card.onclick = async function() {
+        themeGrid.querySelectorAll('button').forEach(function(button) { button.disabled = true; });
+        try {
+          await settings.setMany({ themeId: preset.id, accent: preset.accent, wallpaper: preset.wallpaper, darkMode: preset.darkMode, transparency: true });
+          var scroll = main.scrollTop;
+          main.replaceChildren();
+          renderAppearance(main);
+          main.scrollTop = scroll;
+          main.querySelector('[data-theme-id="' + preset.id + '"]')?.focus({ preventScroll: true });
+        } catch (_) { wm.notify('Could not save theme'); themeGrid.querySelectorAll('button').forEach(function(button) { button.disabled = false; }); }
+      };
+      themeGrid.appendChild(card);
+    });
+    main.appendChild(themeGrid);
+
     // Accent colors
     var accentRow = row('Accent Color', 'Used for highlights and active elements');
     var swatches = document.createElement('div');
@@ -191,26 +241,26 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     wpLabel.textContent = 'Wallpaper';
     main.appendChild(wpLabel);
 
-    var WALLPAPERS = [
-      { label:'Galaxy',   val:'linear-gradient(135deg,#0f0c29,#302b63,#24243e)' },
-      { label:'Sunset',   val:'linear-gradient(135deg,#f093fb,#f5576c,#fda085)' },
-      { label:'Ocean',    val:'linear-gradient(135deg,#2193b0,#6dd5ed)' },
-      { label:'Forest',   val:'linear-gradient(135deg,#134e5e,#71b280)' },
-      { label:'Midnight', val:'linear-gradient(135deg,#0a0a0a,#1a1a2e,#16213e)' },
-      { label:'Neon',     val:'linear-gradient(135deg,#1a0533,#2d0d5e,#0d1b2a)' },
-      { label:'Lava',     val:'linear-gradient(135deg,#200122,#6f0000)' },
-      { label:'Arctic',   val:'linear-gradient(135deg,#b8d4e3,#d9ecf7)' },
-    ];
     var wpGrid = document.createElement('div');
     wpGrid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px';
     WALLPAPERS.forEach(function(wp) {
-      var el = document.createElement('div');
-      el.style.cssText = 'border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid ' + (theme.wallpaper === wp.val ? 'var(--wm-accent)' : 'transparent') + ';transition:border 0.15s';
-      el.innerHTML = '<div style="height:52px;background:' + wp.val + '"></div><div style="font-size:11px;text-align:center;padding:4px;color:var(--wm-text)">' + wp.label + '</div>';
+      var el = document.createElement('button');
+      el.type = 'button';
+      el.dataset.wallpaper = wp.label;
+      el.setAttribute('aria-pressed', String(theme.wallpaper === wp.val));
+      el.style.cssText = 'padding:0;background:var(--wm-control-bg);border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid ' + (theme.wallpaper === wp.val ? 'var(--wm-accent)' : 'transparent') + ';transition:border 0.15s';
+      var preview = document.createElement('div');
+      preview.style.height = '52px';
+      preview.style.background = resolveWallpaper(wp.val).replace(' fixed', '');
+      var label = document.createElement('div');
+      label.textContent = wp.label;
+      label.style.cssText = 'font-size:11px;text-align:center;padding:4px;color:var(--wm-text)';
+      el.append(preview, label);
       el.onclick = async function() {
         await settings.set('wallpaper', wp.val);
-        wpGrid.querySelectorAll('div[style*="border-radius"]').forEach(function(s) { s.style.borderColor = 'transparent'; });
+        wpGrid.querySelectorAll('[data-wallpaper]').forEach(function(s) { s.style.borderColor = 'transparent'; s.setAttribute('aria-pressed', 'false'); });
         el.style.borderColor = 'var(--wm-accent)';
+        el.setAttribute('aria-pressed', 'true');
         kernel.broadcast('themeChanged', settings.getTheme());
       };
       wpGrid.appendChild(el);
@@ -342,6 +392,39 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
   }
 
   // ── Display ──────────────────────────────────────────────────────────────────
+
+  function renderWidgets(main) {
+    main.appendChild(h2('Desktop widgets'));
+    var description = document.createElement('p');
+    description.textContent = 'Add live cards from compatible apps. Move them using the grip, or focus the grip and use the arrow keys. Your layout is saved automatically.';
+    description.style.cssText = 'font-size:13px;line-height:1.5;color:var(--wm-text-dim);margin-bottom:16px';
+    main.appendChild(description);
+    availableWidgets(wm).forEach(function(widget) {
+      var current = settings.get('desktopWidgets');
+      var enabled = Array.isArray(current) && current.some(item => item?.id === widget.id);
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = enabled ? 'Remove' : 'Add';
+      button.setAttribute('aria-label', (enabled ? 'Remove ' : 'Add ') + widget.title + ' widget');
+      button.style.cssText = 'padding:7px 12px;border:1px solid var(--wm-control-border);border-radius:7px;background:var(--wm-control-bg);color:var(--wm-text);cursor:pointer;font:inherit;flex-shrink:0;margin-left:12px';
+      button.onclick = async function() {
+        button.disabled = true;
+        try {
+          var layout = settings.get('desktopWidgets');
+          var active = Array.isArray(layout) && layout.some(item => item?.id === widget.id);
+          await setWidgetEnabled(settings, widget.id, !active);
+          main.replaceChildren(); renderWidgets(main);
+        } catch (_) { wm.notify('Could not save widget layout'); button.disabled = false; }
+      };
+      main.appendChild(row(widget.icon + ' ' + widget.title, widget.description, button));
+    });
+    var gallery = document.createElement('button');
+    gallery.type = 'button';
+    gallery.textContent = 'Open widget gallery';
+    gallery.style.cssText = 'margin-top:18px;padding:9px 12px;border:1px solid var(--wm-control-border);border-radius:7px;background:var(--wm-control-bg);color:var(--wm-text);cursor:pointer;font:inherit';
+    gallery.onclick = function() { document.dispatchEvent(new CustomEvent('bos:showWidgets')); };
+    main.appendChild(gallery);
+  }
 
   function renderDisplay(main) {
     main.appendChild(h2('Display'));
@@ -832,3 +915,5 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
 
   }
 }
+
+

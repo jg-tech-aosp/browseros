@@ -129,8 +129,8 @@ function buildSrcdoc(bosClientSrc, appMainSrc, manifest) {
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { width: 100%; height: 100%; overflow: hidden; }
   body {
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    color: #e0e0ff;
+    font-family: var(--font, 'Segoe UI', system-ui, sans-serif);
+    color: var(--text, #e0e0ff);
     background: transparent;
     width: 100%; height: 100%;
     overflow: hidden;
@@ -172,29 +172,27 @@ ${bosClientSrc}
 (async function() {
   // Wait for boot payload so BOS.os.* is ready
   await BOS.ready();
-  // Apply theme CSS variables immediately
-  const _bosTheme = BOS.os.theme();
-  if (_bosTheme) {
-    const r = document.documentElement;
-    if (_bosTheme.accent)    r.style.setProperty('--accent',     _bosTheme.accent);
-    if (_bosTheme.font)      r.style.setProperty('--font',       _bosTheme.font);
-    if (_bosTheme.darkMode !== undefined) {
-      r.style.setProperty('--bg',         _bosTheme.darkMode ? '#1e1e2e' : '#f0f0f5');
-      r.style.setProperty('--text',       _bosTheme.darkMode ? '#e0e0ff' : '#111');
-      r.style.setProperty('--text-dim',   _bosTheme.darkMode ? '#8888aa' : '#666');
-      r.style.setProperty('--sidebar-bg', _bosTheme.darkMode ? '#15152a' : '#d8d8ec');
-      r.style.setProperty('--hover',      _bosTheme.darkMode ? '#2d2d4e' : '#c8c8e8');
-      r.style.setProperty('--win-bg',     _bosTheme.darkMode ? '#1e1e2e' : '#f0f0f5');
-      r.style.setProperty('--input-bg',   _bosTheme.darkMode ? '#2a2a3e' : '#e8e8f0');
-      r.style.setProperty('--win-border', _bosTheme.darkMode ? '#3a3a5c' : '#ccc');
-    }
-  }
-  // Listen for theme changes
-  BOS.on('themeChanged', (t) => {
+  // Shared colors are provided by the host; no parent DOM access is needed.
+  function applyAppTheme(t) {
+    if (!t) return;
     const r = document.documentElement;
     if (t.accent) r.style.setProperty('--accent', t.accent);
-    if (t.font)   r.style.setProperty('--font',   t.font);
-  });
+    if (t.font) r.style.setProperty('--font', t.font);
+    const c = t.colors || (t.darkMode === false
+      ? { bg:'#f0f0f5', text:'#111', textDim:'#666', panel:'#fafaff', hover:'#ddd', titlebar:'#e0e0f0', border:'#ccc' }
+      : { bg:'#1e1e2e', text:'#e0e0ff', textDim:'#a6a6c5', panel:'#141428', hover:'#2d2d4e', titlebar:'#2a2a4a', border:'#3a3a5c' });
+    const variables = {
+      '--bg':c.bg, '--text':c.text, '--text-dim':c.textDim,
+      '--sidebar-bg':c.panel, '--hover':c.hover, '--win-bg':c.bg,
+      '--input-bg':c.titlebar, '--win-border':c.border, '--border':c.border,
+    };
+    Object.entries(variables).forEach(([key, value]) => {
+      if (typeof value === 'string') r.style.setProperty(key, value);
+    });
+    r.style.colorScheme = t.darkMode === false ? 'light' : 'dark';
+  }
+  applyAppTheme(BOS.os.theme());
+  BOS.on('themeChanged', applyAppTheme);
   // Run app
   try {
 ${appMainSrc}
@@ -529,3 +527,5 @@ export class Launcher {
     }
   }
 }
+
+

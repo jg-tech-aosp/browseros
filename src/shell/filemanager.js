@@ -1,4 +1,5 @@
 import { isImageFile } from './imageviewer.js';
+import { filesWidget } from './widgets.js';
 
 const TRASH_VIEW = '::recycle-bin::';
 
@@ -15,6 +16,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
   wm.registerSystemApp('filemanager', {
     title:  'File Manager',
     icon:   '📁',
+    widgets: [filesWidget],
     width:  760,
     height: 520,
     mount(container, instanceId, args = {}) {
@@ -596,3 +598,5 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fi
     }
   });
 }
+
+

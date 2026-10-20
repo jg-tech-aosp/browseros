@@ -535,6 +535,7 @@ export class Desktop {
       { label: '🎨 Paint',        action: () => this._wm.openSystemApp('paint') },
       'sep',
       { label: '⚙️ Settings',    action: () => this._wm.openSystemApp('settings') },
+      { label: '🧩 Add widgets', action: () => document.dispatchEvent(new CustomEvent('bos:showWidgets')) },
     ]);
   }
 
@@ -636,3 +637,5 @@ export class Desktop {
     setTimeout(() => document.addEventListener('click', close), 0);
   }
 }
+
+

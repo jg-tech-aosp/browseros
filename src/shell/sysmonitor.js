@@ -3,11 +3,14 @@
  * src/shell/sysmonitor.js
  */
 
+import { systemWidget } from './widgets.js';
+
 export function registerSysMonitor({ wm, db, kernel, settings, fs }) {
 
   wm.registerSystemApp('sysmonitor', {
     title:  'System Monitor',
     icon:   '📊',
+    widgets: [systemWidget],
     width:  500,
     height: 460,
     mount(container, instanceId) {
@@ -126,3 +129,5 @@ export function registerSysMonitor({ wm, db, kernel, settings, fs }) {
     }
   });
 }
+
+

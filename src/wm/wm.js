@@ -10,6 +10,8 @@
 
 // ─── CSS injected once into the host document ─────────────────────────────────
 
+import { themeVariables } from '../ui/themes.js';
+
 const WM_STYLES = `
   :root {
     --wm-accent:       #0078d4;
@@ -405,9 +407,11 @@ export class WindowManager {
    * Register a native system app (non-.beep).
    * mount(container, instanceId) is called to render the app.
    */
-  registerSystemApp(appId, { title, icon, width, height, mount, fileTypes = [] }) {
-    this._systemApps.set(appId, { title, icon, width, height, mount, fileTypes });
+  registerSystemApp(appId, { title, icon, width, height, mount, fileTypes = [], widgets = [] }) {
+    this._systemApps.set(appId, { title, icon, width, height, mount, fileTypes, widgets });
   }
+
+  getOpenWindowCount() { return this._windows.size; }
 
   getSystemApps() {
     return [...this._systemApps].map(([id, app]) => ({ id, ...app }));
@@ -1284,7 +1288,7 @@ export class WindowManager {
 
   // ─── Theme ─────────────────────────────────────────────────────────────────
 
-  applyTheme({ accent, font, darkMode, wallpaper, transparency }) {
+  applyTheme({ accent, font, darkMode, wallpaper, transparency, themeId }) {
     const r = document.documentElement;
     if (accent)    r.style.setProperty('--wm-accent', accent);
     if (font)      r.style.setProperty('--wm-font',   font);
@@ -1312,23 +1316,10 @@ export class WindowManager {
       }
     }
     if (darkMode !== undefined) {
-      r.style.setProperty('--wm-bg',           darkMode ? '#1e1e2e' : '#f0f0f5');
-      r.style.setProperty('--wm-titlebar',      darkMode ? '#2a2a4a' : '#e0e0f0');
-      r.style.setProperty('--wm-titlebar-bg',  darkMode ? (transparency === false ? '#2a2a4a' : 'rgba(42,42,74,0.58)') : (transparency === false ? '#e0e0f0' : 'rgba(224,224,240,0.62)'));
-      r.style.setProperty('--wm-window-bg', transparency === false ? (darkMode ? '#1e1e2e' : '#f0f0f5') : 'transparent');
-      r.style.setProperty('--wm-titlebar-txt',  darkMode ? '#e0e0ff' : '#111');
-      r.style.setProperty('--wm-text',          darkMode ? '#e0e0ff' : '#111');
-      r.style.setProperty('--wm-text-dim',      darkMode ? '#8888aa' : '#666');
-      r.style.setProperty('--wm-border',        transparency === false ? (darkMode ? '#3a3a5c' : '#ccc') : (darkMode ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.2)'));
-      r.style.setProperty('--wm-hover',         darkMode ? '#2d2d4e' : '#ddd');
-      r.style.setProperty('--wm-taskbar-bg',   darkMode ? (transparency === false ? '#0f0c28' : 'rgba(15,12,40,0.58)') : (transparency === false ? '#ebebf5' : 'rgba(235,235,245,0.62)'));
-      r.style.setProperty('--wm-panel-bg',     darkMode ? (transparency === false ? '#141428' : 'rgba(20,20,40,0.58)') : (transparency === false ? '#fafaff' : 'rgba(250,250,255,0.64)'));
-      r.style.setProperty('--wm-panel-border', darkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.14)');
-      r.style.setProperty('--wm-control-bg',   darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)');
-      r.style.setProperty('--wm-control-border', darkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.15)');
-      r.style.setProperty('--wm-control-hover', darkMode ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)');
-      r.style.setProperty('--wm-separator',    darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)');
-      r.style.setProperty('--wm-backdrop-filter', transparency === false ? 'none' : 'blur(24px)');
+      for (const [property, value] of Object.entries(themeVariables({ themeId, darkMode, transparency }))) {
+        r.style.setProperty(property, value);
+      }
+      r.style.colorScheme = darkMode ? 'dark' : 'light';
     }
   }
 
@@ -1338,3 +1329,5 @@ export class WindowManager {
     this._kernel = kernel;
   }
 }
+
+

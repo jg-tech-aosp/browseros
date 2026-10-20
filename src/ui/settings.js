@@ -7,7 +7,11 @@
  * so the rest of the OS can react to setting changes live.
  */
 
+import { themeColors, resolveWallpaper } from './themes.js';
+
 const DEFAULTS = {
+  themeId: 'classic',
+  desktopWidgets: [],
   accent:     '#0078d4',
   wallpaper:  'linear-gradient(135deg, #0f0c29, #302b63, #24243e)',
   font:       "'Segoe UI', system-ui, sans-serif",
@@ -48,8 +52,10 @@ export class Settings {
 
   getTheme() {
     return {
+      themeId: this._cache.themeId,
+      colors: themeColors(this._cache.themeId, this._cache.darkMode),
       accent:    this._cache.accent,
-      wallpaper: this._cache.wallpaper,
+      wallpaper: resolveWallpaper(this._cache.wallpaper),
       font:      this._cache.font,
       darkMode:  this._cache.darkMode,
       transparency: this._cache.transparency,
@@ -129,3 +135,5 @@ export class Settings {
     this._handlers = this._handlers.filter(h => h !== fn);
   }
 }
+
+

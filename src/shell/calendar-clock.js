@@ -2,6 +2,8 @@
  * BrowserOS 3 — Native Calendar and Clock apps.
  */
 
+import { calendarWidget, clockWidget } from './widgets.js';
+
 function dateKey(date) {
   return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
 }
@@ -25,6 +27,7 @@ export function registerCalendarApp({ wm, db }) {
   wm.registerSystemApp('calendar', {
     title: 'Calendar',
     icon: '📅',
+    widgets: [calendarWidget],
     width: 620,
     height: 560,
     mount(container, instanceId, args = {}) {
@@ -167,6 +170,7 @@ export function registerClockApp({ wm }) {
   wm.registerSystemApp('clock', {
     title: 'Clock',
     icon: '🕒',
+    widgets: [clockWidget],
     width: 430,
     height: 440,
     mount(container) {
@@ -404,3 +408,5 @@ export function registerClockApp({ wm }) {
     }
   });
 }
+
+
