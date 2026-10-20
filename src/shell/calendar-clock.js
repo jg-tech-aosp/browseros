@@ -80,6 +80,7 @@ export function registerCalendarApp({ wm, db }) {
       eventInput.setAttribute('aria-label', 'Event title');
       eventInput.style.cssText = 'flex:1;min-width:0;border:1px solid var(--wm-control-border);border-radius:7px;padding:8px;background:var(--wm-control-bg);color:var(--wm-text);font:inherit';
       const add = makeButton('Add');
+      add.type = 'submit';
       form.append(eventInput, add);
       container.appendChild(form);
 
@@ -186,6 +187,10 @@ export function registerClockApp({ wm }) {
       let lastClockSecond = -1;
       let lastTimerSecond = -1;
       let laps = [];
+      let stopwatchDisplay = null;
+      let timerDisplay = null;
+      let timerStartButton = null;
+      let timerCancelButton = null;
 
       function setTab(tab) {
         active = tab;
@@ -218,6 +223,10 @@ export function registerClockApp({ wm }) {
 
       function render() {
         if (destroyed) return;
+        stopwatchDisplay = null;
+        timerDisplay = null;
+        timerStartButton = null;
+        timerCancelButton = null;
         content.innerHTML = '';
         if (active === 'clock') {
           content.appendChild(sectionTitle('Local time'));
@@ -234,7 +243,8 @@ export function registerClockApp({ wm }) {
         } else if (active === 'stopwatch') {
           content.appendChild(sectionTitle('Stopwatch'));
           const elapsed = stopwatchElapsed + (stopwatchRunning ? performance.now() - stopwatchStarted : 0);
-          content.appendChild(bigText(formatDuration(elapsed, true)));
+          stopwatchDisplay = bigText(formatDuration(elapsed, true));
+          content.appendChild(stopwatchDisplay);
           const controls = document.createElement('div');
           controls.style.cssText = 'display:flex;justify-content:center;gap:8px';
           const toggle = makeButton(stopwatchRunning ? 'Pause' : 'Start');
@@ -255,7 +265,11 @@ export function registerClockApp({ wm }) {
           if (stopwatchRunning) {
             const lap = makeButton('Lap');
             lap.style.margin = '10px auto';
-            lap.onclick = () => { laps.unshift(formatDuration(elapsed, true)); render(); };
+            lap.onclick = () => {
+              const currentElapsed = stopwatchElapsed + (stopwatchRunning ? performance.now() - stopwatchStarted : 0);
+              laps.unshift(formatDuration(currentElapsed, true));
+              render();
+            };
             content.appendChild(lap);
           }
           laps.forEach((value, index) => {
@@ -267,6 +281,7 @@ export function registerClockApp({ wm }) {
         } else {
           content.appendChild(sectionTitle('Timer'));
           const display = bigText(formatDuration(timerRemaining));
+          timerDisplay = display;
           content.appendChild(display);
           const inputRow = document.createElement('div');
           inputRow.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:8px;margin:12px 0';
@@ -284,6 +299,7 @@ export function registerClockApp({ wm }) {
           const controls = document.createElement('div');
           controls.style.cssText = 'display:flex;justify-content:center;gap:8px';
           const start = makeButton(timerRunning ? 'Running…' : 'Start timer');
+          timerStartButton = start;
           start.disabled = timerRunning;
           start.onclick = () => {
             const mins = minutes.valueAsNumber;
@@ -301,6 +317,7 @@ export function registerClockApp({ wm }) {
             render();
           };
           const cancel = makeButton('Cancel');
+          timerCancelButton = cancel;
           cancel.disabled = !timerRunning && !timerRemaining;
           cancel.onclick = () => { timerRunning = false; timerRemaining = 0; render(); };
           controls.append(start, cancel);
@@ -314,17 +331,25 @@ export function registerClockApp({ wm }) {
           const second = Math.floor(Date.now() / 1000);
           if (second !== lastClockSecond) { lastClockSecond = second; render(); }
         }
-        if (active === 'stopwatch' && stopwatchRunning) render();
+        if (active === 'stopwatch' && stopwatchRunning && stopwatchDisplay) {
+          const elapsed = stopwatchElapsed + performance.now() - stopwatchStarted;
+          stopwatchDisplay.textContent = formatDuration(elapsed, true);
+        }
         if (timerRunning) {
           timerRemaining = Math.max(0, timerEndsAt - Date.now());
           const second = Math.ceil(timerRemaining / 1000);
           if (timerRemaining === 0) {
             timerRunning = false;
             wm.notify('Timer finished');
+            if (timerStartButton) {
+              timerStartButton.disabled = false;
+              timerStartButton.textContent = 'Start timer';
+            }
+            if (timerCancelButton) timerCancelButton.disabled = true;
           }
-          if (active === 'timer' && (second !== lastTimerSecond || timerRemaining === 0)) {
+          if (active === 'timer' && timerDisplay && second !== lastTimerSecond) {
             lastTimerSecond = second;
-            render();
+            timerDisplay.textContent = formatDuration(timerRemaining);
           }
         }
       }, 100);
