@@ -1,5 +1,7 @@
+import { OS_VERSION, BOS_API_VERSION } from '../version.js';
+
 /**
- * BrowserOS v2 — Settings App
+ * BrowserOS — Settings App
  * src/ui/settings-app.js
  *
  * Native system app — not a .beep.
@@ -915,8 +917,8 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
     main.appendChild(h2('System'));
 
     var info = [
-      { label:'OS Version',  value:'BrowserOS 2.1.2' },
-      { label:'BOS API',     value:'2.0' },
+      { label:'OS Version',  value:'BrowserOS ' + OS_VERSION },
+      { label:'BOS API',     value:BOS_API_VERSION },
       { label:'Engine',      value:'HTML5 / IndexedDB / ES Modules' },
       { label:'License',     value:'AGPL-3.0' },
     ];

@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — App Registry
+ * BrowserOS — App Registry
  * src/kernel/registry.js
  *
  * Tracks all running app instances.

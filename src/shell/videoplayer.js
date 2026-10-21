@@ -1,5 +1,5 @@
 /**
- * BrowserOS 3 — Video Player (Native System Component)
+ * BrowserOS — Video Player (Native System Component)
  * Plays local files from the BrowserOS virtual filesystem.
  */
 

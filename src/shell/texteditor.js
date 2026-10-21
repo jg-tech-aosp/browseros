@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Text Editor (Native System Component)
+ * BrowserOS — Text Editor (Native System Component)
  * src/shell/texteditor.js
  */
 

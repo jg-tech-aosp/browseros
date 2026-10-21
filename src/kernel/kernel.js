@@ -1,5 +1,7 @@
+import { OS_VERSION } from '../version.js';
+
 /**
- * BrowserOS v2 — Kernel
+ * BrowserOS — Kernel
  * src/kernel/kernel.js
  *
  * The postMessage router. Every message from every app iframe passes through here.
@@ -299,7 +301,7 @@ export class Kernel {
       // ── OS info ─────────────────────────────────────────────────────────────
 
       case 'os.version': {
-        return '2.1.2';
+        return OS_VERSION;
       }
 
       case 'os.theme': {

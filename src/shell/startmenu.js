@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Start Menu
+ * BrowserOS — Start Menu
  * src/shell/startmenu.js
  *
  * Opens anchored to the taskbar start button.
@@ -33,9 +33,8 @@ export class StartMenu {
       const nameEl = document.getElementById('bos-startmenu-user-name');
       if (nameEl) nameEl.textContent = event.detail?.name || 'User';
     });
-    // Ctrl+Space still works as alias
+    // Ctrl+Space belongs to Search; Start has its own taskbar button.
     document.addEventListener('keydown', e => {
-      if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey && e.code === 'Space') { e.preventDefault(); this.toggle(); }
       if (e.key === 'Escape' && this._open) this.close();
     });
     console.log('[startmenu] Booted');

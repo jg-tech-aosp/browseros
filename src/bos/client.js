@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — BOS Client Library
+ * BrowserOS — BOS Client Library
  * src/bos/client.js
  *
  * This code runs INSIDE every app iframe, not in the OS.
@@ -170,7 +170,7 @@
     // Synchronous — data is available from boot payload, no postMessage needed.
 
     os: {
-      version: () => _bootData?.version  ?? '2.1.2',
+      version: () => _bootData?.version  ?? '3.0.0',
       theme:   () => _bootData?.theme    ?? {},
       env:     () => _bootData?.env      ?? {},
       args:    () => _bootData?.args     ?? {},

@@ -1,5 +1,7 @@
+import { OS_VERSION, BOS_API_VERSION, TERMINAL_VERSION } from '../version.js';
+
 /**
- * BrowserOS v2 — Terminal (Native System Component)
+ * BrowserOS — Terminal (Native System Component)
  * src/shell/terminal.js
  */
 
@@ -300,17 +302,18 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings, db }) {
         },
 
         uname(args) {
-          print(args[0] === '-a' ? 'BrowserOS 3 Dev / HTML5 / IndexedDB / ES Modules' : 'BrowserOS 3 Dev');
+          print(args[0] === '-a' ? 'BrowserOS ' + OS_VERSION + ' / HTML5 / IndexedDB / ES Modules' : 'BrowserOS');
         },
 
         version() {
-          print('BrowserOS Terminal v3.0');
-          print('BOS API: 2.0');
+          print('BrowserOS Terminal v' + TERMINAL_VERSION);
+          print('BrowserOS ' + OS_VERSION);
+          print('BOS API: ' + BOS_API_VERSION);
           print('Engine: HTML5 / ES Modules / IndexedDB');
         },
 
         sysinfo() {
-          print('BrowserOS 3 Dev', '#66aaff');
+          print('BrowserOS ' + OS_VERSION, '#66aaff');
           print('Browser: ' + (navigator.userAgent || 'Unknown'));
           print('Platform: ' + (navigator.userAgentData?.platform || navigator.platform || 'Unknown'));
           print('Language: ' + (navigator.language || 'Unknown'));
@@ -509,7 +512,7 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings, db }) {
 
       // ── Boot message ──────────────────────────────────────────────────────────
 
-      print('BrowserOS Terminal v3.0', '#66aaff');
+      print('BrowserOS Terminal v' + TERMINAL_VERSION, '#66aaff');
       print('Type "help" for commands. Tab completes paths; ↑/↓ browse session history; Ctrl+L clears output.', '#8888aa');
       print('');
       updatePrompt();

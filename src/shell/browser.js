@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Browser (Native System Component)
+ * BrowserOS — Browser (Native System Component)
  * src/shell/browser.js
  *
  * Native app — not a .beep. Registered with WM via registerSystemApp.

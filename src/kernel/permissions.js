@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Permission Checker
+ * BrowserOS — Permission Checker
  * src/kernel/permissions.js
  *
  * Validates whether an app has permission to perform a given action.

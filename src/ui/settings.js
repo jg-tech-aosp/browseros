@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Settings
+ * BrowserOS — Settings
  * src/ui/settings.js
  *
  * Manages OS settings stored in IndexedDB.

@@ -1,8 +1,10 @@
-# BrowserOS v2
+# BrowserOS architecture reference
+
+> This document records the v2 foundation. BrowserOS 3.0.0 builds on it; see [release changes](docs/release-3.md), [themes and widgets](docs/themes-and-widgets.md), and [document close guards](docs/document-close-guards.md) for newer capabilities. Historical version numbers and format/API versions below are retained as reference.
 
 > BrowserOS is a browser-based desktop environment with a virtual filesystem, native system components, sandboxed `.beep` applications, persistent settings, and an application installation system.
 
-This document describes the **implemented BrowserOS v2 architecture** as it exists in the repository. It is both a technical reference and a readable overview. Where the original March 2026 design differed from the implementation, this document describes the implementation.
+This document describes the **BrowserOS v2 architectural foundation**. It is a historical technical reference, not an exhaustive description of the 3.0.0 feature set. The linked feature documents and current source cover newer behavior.
 
 ---
 
@@ -936,7 +938,7 @@ The current project is a hybrid of the original v2 architecture and features add
 |---|---|
 | 2.1.1 | Fix wallpaper picker selection for images in the virtual filesystem |
 | 2.1.2 | Fix app loading and restore bundled apps after filesystem reset |
-| 2.1.1 | Fix wallpaper picker selection for images in the virtual filesystem |\n| 2.1.0 | BrowserOS 2.1 release, including desktop app shortcuts and release apps |
+| 2.1.0 | BrowserOS 2.1 release, including desktop app shortcuts and release apps |
 | 2.0.0 | Initial BrowserOS v2 architecture and implementation |
 | 2.x development | Expanded native shell, application system, App Store, drag/drop and other desktop features |
 

@@ -1,7 +1,7 @@
 import { isImageFile } from './imageviewer.js';
 
 /**
- * BrowserOS v2 — Desktop
+ * BrowserOS — Desktop
  * src/shell/desktop.js
  *
  * Manages the desktop surface:

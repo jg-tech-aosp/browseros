@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — IndexedDB Wrapper
+ * BrowserOS — IndexedDB Wrapper
  * src/fs/db.js
  *
  * Abstracts all IndexedDB transaction boilerplate into clean async methods.

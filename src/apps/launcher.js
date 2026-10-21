@@ -1,5 +1,7 @@
+import { OS_VERSION, BOS_API_VERSION } from '../version.js';
+
 /**
- * BrowserOS v2 — .beep Launcher
+ * BrowserOS — .beep Launcher
  * src/apps/launcher.js
  *
  * Handles installing and launching .beep apps.
@@ -90,7 +92,7 @@ function validateManifest(manifest, path) {
   normalizeFileTypes(manifest.fileTypes);
   // BOS version check
   const required_bos = parseFloat(manifest.bos);
-  const current_bos  = 2.0;
+  const current_bos  = parseFloat(BOS_API_VERSION);
   if (required_bos > current_bos) {
     throw new Error(
       `App requires BOS ${manifest.bos} but this OS runs BOS ${current_bos}. Update BrowserOS.`
@@ -409,7 +411,7 @@ export class Launcher {
     // Build and send boot payload
     const theme = await this._settings.getTheme();
     await this._kernel.sendBootPayload(instanceId, {
-      version: '2.1.2',
+      version: OS_VERSION,
       theme,
       args,
       env: {
@@ -465,21 +467,26 @@ export class Launcher {
   /**
    * Seed inbox apps on first boot.
    * Fetches each .beep from /apps/{name}.beep, writes to virtual FS, installs as protected.
-   * On subsequent boots the apps are already in IndexedDB so this is a no-op.
+   * Existing installs are preserved unless an explicit newer protected bundle is shipped.
    *
    * @param {string[]} appIds - e.g. ['calculator', 'texteditor', ...]
    */
-  async seedInboxApps(appIds) {
+  async seedInboxApps(appIds, bundledVersions = {}) {
     for (const appId of appIds) {
       const existing = await this._db.apps.get(appId);
-      if (existing) continue;
+      // Only update protected bundles with an explicitly shipped newer version.
+      // Ordinary installs and app-private data retain their ownership and identity.
+      const bundledVersion = bundledVersions[appId];
+      const needsUpdate = existing?.protected && bundledVersion &&
+        String(existing.version).localeCompare(bundledVersion, undefined, { numeric: true }) < 0;
+      if (existing && !needsUpdate) continue;
 
       const url    = `${BASE_URL}apps/${appId}.beep`;
       const fspath = `/Apps/${appId}.beep`;
 
       try {
         console.log(`[launcher] Seeding ${appId} from ${url}...`);
-        const res = await fetch(url);
+        const res = await fetch(url, { cache: 'no-cache' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         // Load zip directly from response — no virtual FS round-trip
@@ -490,6 +497,9 @@ export class Launcher {
         if (!manifestFile) throw new Error(`No manifest.json in ${appId}.beep`);
         const manifest = JSON.parse(await manifestFile.async('string'));
         validateManifest(manifest, fspath);
+        if (bundledVersion && manifest.version !== bundledVersion) {
+          throw new Error('Bundled ' + appId + ' version does not match this release');
+        }
 
         const iconDataUrl = (manifest.icon && zip.file(manifest.icon))
           ? await extractIcon(zip, manifest.icon)
@@ -506,14 +516,14 @@ export class Launcher {
           requestedPermissions: manifest.permissions,
           fileTypes:    normalizeFileTypes(manifest.fileTypes),
           fileTypeManifestVersion: 1,
-          storageId:   createStorageId(),
+          storageId:   existing?.storageId || createStorageId(),
           permissionDecisionVersion: 1,
           events:      manifest.events,
           entry:       manifest.entry,
           bos:         manifest.bos,
           width:       manifest.width  || 640,
           height:      manifest.height || 480,
-          installedAt: Date.now(),
+          installedAt: existing?.installedAt || Date.now(),
           protected:   true,
           // Store the raw zip as base64 for later launching
           zipData:     await arrayBufferToBase64(arrayBuffer),

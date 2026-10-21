@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Filesystem
+ * BrowserOS — Filesystem
  * src/fs/fs.js
  *
  * Implements all filesystem operations defined in SPEC.md §5 BOS.fs.
@@ -8,6 +8,7 @@
  */
 
 import { DB } from './db.js';
+import { OS_VERSION } from '../version.js';
 
 // ─── Mime detection ───────────────────────────────────────────────────────────
 
@@ -70,17 +71,24 @@ const DEFAULT_FILES = [
   {
     path:    '/Documents/Welcome.txt',
     content: [
-      'Welcome to BrowserOS v2!',
+      'Welcome to BrowserOS!',
       '',
-      'This is a complete rewrite of BrowserOS with:',
-      '- Proper app sandboxing via iframes + postMessage',
-      '- IndexedDB filesystem (no more localStorage limits)',
-      '- .beep v2 executable format (zip-based, permissions model)',
-      '- BOS v2 async API',
-      '- Tabs, bookmarks, history in Browser',
-      '- App Store',
+      'Your desktop, in a browser tab.',
       '',
-      'Have fun.',
+      'Open Help from Start for the shortcut manual and a tour of your desktop.',
+      'Open Info to discover what is new in version ' + OS_VERSION + '.',
+      '',
+      '- Clear Ice themes, wallpapers, and desktop widgets',
+      '- Window snapping, app switching, and taskbar previews',
+      '- Recycle Bin and Open with for your virtual files',
+      '- Native Calendar, Clock, and Video Player',
+      '- More Settings, Developer tools, and Terminal commands',
+      '- Writer, Stage, and Cells available from the App Store',
+      '',
+      'Settings > Storage lets you download a full profile backup.',
+      'Your files stay in this browser profile. Keep backups somewhere safe.',
+      '',
+      'Make yourself at home.',
     ].join('\n'),
   },
 ];

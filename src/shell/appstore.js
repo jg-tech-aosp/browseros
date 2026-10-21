@@ -1,7 +1,7 @@
 import { createStorageId, confirmPermissionGrant } from '../apps/launcher.js';
 
 /**
- * BrowserOS v2 — App Store (Native System Component)
+ * BrowserOS — App Store (Native System Component)
  * src/shell/appstore.js
  *
  * Native app — not a .beep. Needs direct binary fetch for .beep downloads.

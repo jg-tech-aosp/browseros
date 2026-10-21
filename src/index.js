@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Boot Sequence
+ * BrowserOS — Boot Sequence
  * src/index.js
  *
  * Wires all modules together and boots the OS in the correct order:
@@ -15,6 +15,9 @@
  * 10. Seed inbox apps
  * 11. Restore desktop state
  */
+
+import { registerHelp } from './shell/help.js';
+import { OS_VERSION } from './version.js';
 
 import { DB }            from './fs/db.js';
 import { FileSystem }    from './fs/fs.js';
@@ -94,11 +97,11 @@ function showFirstRunOnboarding(settings) {
     overlay.setAttribute('aria-labelledby', 'ob-title');
     overlay.innerHTML = `
       <section class="ob-card">
-        <div class="ob-mark">BrowserOS 3</div>
+        <div class="ob-mark">BrowserOS</div>
         <div class="ob-progress" aria-hidden="true"><span></span><span></span><span></span></div>
         <div class="ob-page" data-page="0">
           <h1 id="ob-title">A fresh start.</h1>
-          <p>Welcome to BrowserOS 3 Dev. Let’s set up your local profile and make the desktop feel like yours.</p>
+          <p>Welcome to BrowserOS. Let’s set up your local profile and make the desktop feel like yours.</p>
           <p class="ob-muted">Your files and preferences stay in this browser.</p>
           <div class="ob-actions"><span></span><button class="ob-btn ob-primary" data-next>Get started</button></div>
         </div>
@@ -177,7 +180,7 @@ function showFirstRunOnboarding(settings) {
 }
 
 async function boot() {
-  console.log('[bos] Booting BrowserOS v2...');
+  console.log('[bos] Booting BrowserOS...');
 
   try {
 
@@ -236,6 +239,7 @@ async function boot() {
     registerVideoPlayer({ wm, fs });
     registerCalendarApp({ wm, db });
     registerClockApp({ wm });
+    registerHelp({ wm });
 
     // ── 7. Shell + Desktop ────────────────────────────────────────────────────
     console.log('[bos] Booting notifications...');
@@ -275,7 +279,7 @@ async function boot() {
 
     // ── 10. Seed inbox apps ───────────────────────────────────────────────────
     console.log('[bos] Seeding inbox apps...');
-    await launcher.seedInboxApps(INBOX_APPS);
+    await launcher.seedInboxApps(INBOX_APPS, { info: OS_VERSION });
     await launcher.refreshFileTypes();
     await desktop.refreshAppIcons();
     await taskbar.refreshPinnedApps();
@@ -291,7 +295,7 @@ async function boot() {
     await showFirstRunOnboarding(settings);
 
     // ── Done ──────────────────────────────────────────────────────────────────
-    console.log('[bos] BrowserOS v2 ready ✓');
+    console.log('[bos] BrowserOS ready ✓');
 
   } catch (err) {
     // Boot failure — show a readable error screen

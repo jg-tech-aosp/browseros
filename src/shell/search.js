@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Global Search
+ * BrowserOS — Global Search
  * src/shell/search.js
  *
  * Ctrl+Space spotlight-style search.

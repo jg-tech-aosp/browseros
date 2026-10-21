@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Taskbar
+ * BrowserOS — Taskbar
  * src/shell/taskbar.js
  *
  * Manages the taskbar:

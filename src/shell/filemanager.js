@@ -5,7 +5,7 @@ import { styleNativeApp } from '../ui/native-layout.js';
 const TRASH_VIEW = '::recycle-bin::';
 
 /**
- * BrowserOS v2 — File Manager (Native System Component)
+ * BrowserOS — File Manager (Native System Component)
  * src/shell/filemanager.js
  *
  * Native app — not a .beep. Registered with WM via registerSystemApp.

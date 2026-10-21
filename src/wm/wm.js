@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Window Manager
+ * BrowserOS — Window Manager
  * src/wm/wm.js
  *
  * Creates and manages all OS windows.

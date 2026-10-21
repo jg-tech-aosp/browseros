@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Music Player (Native System Component)
+ * BrowserOS — Music Player (Native System Component)
  * src/shell/musicplayer.js
  */
 

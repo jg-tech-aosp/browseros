@@ -1,5 +1,5 @@
 /**
- * BrowserOS 3 — Native Calendar and Clock apps.
+ * BrowserOS — Native Calendar and Clock apps.
  */
 
 import { calendarWidget, clockWidget } from './widgets.js';
