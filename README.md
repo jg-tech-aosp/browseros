@@ -2,7 +2,7 @@
 
 **Your desktop, in a browser tab.** Open apps, make things, organize your files, and make the desktop your own.
 
-[Main site](https://jg-tech-aosp.github.io/browseros/) · [Development preview](https://jg-tech-aosp.github.io/browseros3dev/) · [What’s new in 3.0.0](docs/release-3.md)
+[Main site](https://jg-tech-aosp.github.io/browseros/) · [What’s new in 3.0.0](docs/release-3.md)
 
 ![BrowserOS logo](assets/browseros3logo.png)
 
@@ -15,7 +15,6 @@
 - **Add more apps.** Install `.beep` packages from the App Store, check for updates, or sideload a package. Writer, Stage and Cells cover documents, presentations and spreadsheets; Snake and BrowserBricks cover your breaks.
 - **Keep a backup.** Export a single file or download a profile ZIP containing files, settings, installed apps, permissions and supported app data. Restore by merging or replacing a profile.
 
-Version **3.0.0** is prepared in this development repository. The main-site rollout happens separately; the main site may still serve the previous release until then.
 
 ## Get started
 
@@ -40,7 +39,6 @@ BrowserOS stores its virtual files, installed apps, settings and supported app d
 
 First-run profiles are local personalization, not online accounts or password-protected logins. Anyone using the same browser profile may be able to open its saved files. **Reset Filesystem is a factory reset**: it removes the profile, files, apps, app data and settings.
 
-The development preview and main site currently use separate profile databases. Do not assume files will appear on both; use backups when moving between them.
 
 ## Apps and browser limits
 
