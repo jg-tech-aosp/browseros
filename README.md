@@ -2,7 +2,7 @@
 
 **Your desktop, in a browser tab.** Open apps, make things, organize your files, and make the desktop your own.
 
-[Main site](https://jg-tech-aosp.github.io/browseros/) · [What’s new in 3.0.0](docs/release-3.md)
+[Main site](https://jg-tech-aosp.github.io/browseros/) · [What’s new in 3.0.1](docs/release-3.0.1.md)
 
 ![BrowserOS logo](assets/browseros3logo.png)
 
@@ -42,7 +42,7 @@ First-run profiles are local personalization, not online accounts or password-pr
 
 ## Apps and browser limits
 
-BrowserOS 3.0.0 provides **BOS API 2.5**. Existing `.beep` apps targeting BOS 2.0 remain supported; an app’s manifest declares its minimum API requirement.
+BrowserOS 3.0.1 provides **BOS API 2.5**. Existing `.beep` apps targeting BOS 2.0 remain supported; an app’s manifest declares its minimum API requirement.
 
 Native tools are part of the desktop. Calculator, Markdown Viewer and Info are bundled `.beep` apps; additional packages come from the App Store. Installable apps run in sandboxed frames, declare supported file types, and request specific permissions. Review those requests before granting access.
 

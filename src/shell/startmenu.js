@@ -26,6 +26,9 @@ export class StartMenu {
     // Keep one outside-click handler instead of adding one on every opening.
     document.addEventListener('mousedown', event => {
       const startButton = document.getElementById('wm-start-btn');
+      const appMenu = document.getElementById('bos-startmenu-app-menu');
+      if (appMenu?.contains(event.target)) return;
+      appMenu?.remove();
       if (this._open && !this._el.contains(event.target) &&
           !startButton?.contains(event.target)) this.close();
     });
@@ -161,6 +164,7 @@ export class StartMenu {
   close() {
     if (!this._open) return;
     this._open = false;
+    document.getElementById('bos-startmenu-app-menu')?.remove();
     this._el.setAttribute('aria-hidden', 'true');
     this._searchInput.blur();
     this._el.classList.remove('bos-menu-opening');
@@ -185,7 +189,7 @@ export class StartMenu {
     this._body.innerHTML = '';
     this._selectedIdx = -1;
 
-    const pinned = this._settings.get('pinnedApps') || [];
+    const pinned = this._getStartPins();
     const allApps = await this._db.apps.all();
 
     // Pinned apps
@@ -347,40 +351,70 @@ export class StartMenu {
     });
   }
 
+  _getStartPins() {
+    // Preserve the original Start layout until the user first changes its pins.
+    return [...new Set(this._settings.get('startPinnedApps') ??
+      this._settings.get('pinnedApps') ?? [])];
+  }
+
   _showAppContextMenu(x, y, appId) {
     document.getElementById('bos-startmenu-app-menu')?.remove();
     const menu = document.createElement('div');
     menu.id = 'bos-startmenu-app-menu';
     menu.setAttribute('role', 'menu');
-    menu.style.cssText = `
-      position:fixed;left:${Math.max(4,Math.min(x,window.innerWidth-220))}px;
-      top:${Math.max(4,Math.min(y,window.innerHeight-48))}px;
-      min-width:210px;padding:4px;background:var(--wm-panel-bg);
-      border:1px solid var(--wm-panel-border);border-radius:8px;
-      box-shadow:0 8px 28px rgba(0,0,0,.45);z-index:9500;
-    `;
-    const action = document.createElement('button');
-    action.type = 'button';
-    action.setAttribute('role', 'menuitem');
-    action.textContent = 'Create desktop shortcut';
-    action.style.cssText = 'width:100%;padding:9px 11px;border:0;border-radius:5px;background:transparent;color:var(--wm-text);text-align:left;font:13px var(--wm-font);cursor:pointer';
-    action.onmouseenter = () => action.style.background = 'var(--wm-control-hover)';
-    action.onmouseleave = () => action.style.background = '';
-    action.onclick = event => {
-      event.stopPropagation();
-      document.dispatchEvent(new CustomEvent('bos:createDesktopShortcut', { detail: { appId } }));
-      menu.remove();
-      this.close();
+    menu.setAttribute('aria-label', 'App actions');
+    menu.style.cssText = 'position:fixed;min-width:210px;padding:4px;background:var(--wm-panel-bg);border:1px solid var(--wm-panel-border);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.45);z-index:9500';
+    const addAction = (label, run) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.setAttribute('role', 'menuitem');
+      button.textContent = label;
+      button.style.cssText = 'display:block;width:100%;padding:9px 11px;border:0;border-radius:5px;background:transparent;color:var(--wm-text);text-align:left;font:13px var(--wm-font);cursor:pointer';
+      button.onmouseenter = () => button.style.background = 'var(--wm-control-hover)';
+      button.onmouseleave = () => button.style.background = '';
+      button.onclick = async event => {
+        event.stopPropagation();
+        menu.querySelectorAll('button').forEach(item => item.disabled = true);
+        try { await run(); }
+        catch (error) { this._wm.notify('Could not complete app action: ' + error.message); }
+        finally {
+          menu.remove();
+          if (this._open) this._searchInput.focus();
+        }
+      };
+      menu.appendChild(button);
     };
-    menu.appendChild(action);
-    document.body.appendChild(menu);
-    const close = event => {
-      if (!menu.contains(event.target)) {
-        menu.remove();
-        document.removeEventListener('click', close);
+    const pinned = this._getStartPins().includes(appId);
+    addAction(pinned ? 'Unpin from Start' : 'Pin to Start', async () => {
+      const current = this._getStartPins();
+      const next = pinned ? current.filter(id => id !== appId) : [...new Set([...current, appId])];
+      try { await this._settings.set('startPinnedApps', next); }
+      catch (error) {
+        // Settings updates its cache before writing; undo that on a save failure.
+        this._settings._cache.startPinnedApps = current;
+        throw error;
       }
-    };
-    setTimeout(() => document.addEventListener('click', close), 0);
+      if (this._open) await this._onSearch(this._searchInput.value);
+    });
+    addAction('Create desktop shortcut', () => {
+      document.dispatchEvent(new CustomEvent('bos:createDesktopShortcut', { detail: { appId } }));
+      this.close();
+    });
+    menu.addEventListener('keydown', event => {
+      const buttons = [...menu.querySelectorAll('button')];
+      const index = buttons.indexOf(document.activeElement);
+      if (event.key === 'Escape') {
+        event.preventDefault(); event.stopPropagation();
+        menu.remove(); this._searchInput.focus();
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        buttons[(index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length].focus();
+      }
+    });
+    document.body.appendChild(menu);
+    menu.style.left = Math.max(4, Math.min(x, window.innerWidth - menu.offsetWidth - 4)) + 'px';
+    menu.style.top = Math.max(4, Math.min(y, window.innerHeight - menu.offsetHeight - 4)) + 'px';
+    menu.querySelector('button').focus();
   }
 
   // ─── UI helpers ────────────────────────────────────────────────────────────

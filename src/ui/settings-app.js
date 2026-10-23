@@ -950,7 +950,7 @@ export function registerSettingsApp({ wm, settings, kernel, db, fs }) {
       try { appCount = (await db.apps.all()).length; } catch (_) {}
       try { fileCount = (await fs.ls('/')).length; } catch (_) {}
       var info = [
-        ['BrowserOS', '3 Dev'],
+        ['BrowserOS', OS_VERSION],
         ['Browser', navigator.userAgent || 'Unavailable'],
         ['Platform', navigator.userAgentData?.platform || navigator.platform || 'Unavailable'],
         ['Language', navigator.language || 'Unavailable'],

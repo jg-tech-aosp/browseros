@@ -27,6 +27,7 @@ const DEFAULTS = {
   debugLayoutOutlines: false,
   iceMode: false,
   fileAssociations: {},
+  startPinnedApps: null,
   pinnedApps: ['filemanager', 'texteditor', 'terminal', 'calculator', 'browser', 'paint', 'appstore', 'musicplayer', 'markdownviewer', 'sysmonitor'],
   userProfile: { name: 'User', avatar: null },
 };
@@ -43,6 +44,11 @@ export class Settings {
     const saved = await this._db.settings.all();
     // Merge saved over defaults
     this._cache = { ...DEFAULTS, ...saved };
+    // Migrate the old shared pin list once, then keep Start and taskbar independent.
+    if (!Array.isArray(this._cache.startPinnedApps)) {
+      this._cache.startPinnedApps = [...(this._cache.pinnedApps || [])];
+      await this._db.settings.set('startPinnedApps', this._cache.startPinnedApps);
+    }
     this.applyAccessibility();
     this.applyDeveloperSettings();
     console.log('[settings] Loaded');
