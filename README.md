@@ -44,6 +44,8 @@ The development preview and main site currently use separate profile databases. 
 
 ## Apps and browser limits
 
+BrowserOS 3.0.0 provides **BOS API 2.5**. Existing `.beep` apps targeting BOS 2.0 remain supported; an app’s manifest declares its minimum API requirement.
+
 Native tools are part of the desktop. Calculator, Markdown Viewer and Info are bundled `.beep` apps; additional packages come from the App Store. Installable apps run in sandboxed frames, declare supported file types, and request specific permissions. Review those requests before granting access.
 
 - Clear Ice’s curved ice magnification works in Chrome and Edge. Firefox retains standard ice blur but does not support that bending effect.

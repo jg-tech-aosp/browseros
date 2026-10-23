@@ -1,5 +1,7 @@
 # BrowserOS architecture reference
 
+Current API version: **BOS 2.5**, with backward compatibility for BOS 2.0 apps. The `bos` field in a package manifest declares its minimum required API version; historical 2.0 examples below remain valid.
+
 > This document records the v2 foundation. BrowserOS 3.0.0 builds on it; see [release changes](docs/release-3.md), [themes and widgets](docs/themes-and-widgets.md), and [document close guards](docs/document-close-guards.md) for newer capabilities. Historical version numbers and format/API versions below are retained as reference.
 
 > BrowserOS is a browser-based desktop environment with a virtual filesystem, native system components, sandboxed `.beep` applications, persistent settings, and an application installation system.

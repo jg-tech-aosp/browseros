@@ -1,4 +1,4 @@
-import { OS_VERSION } from '../version.js';
+import { OS_VERSION, BOS_API_VERSION } from '../version.js';
 
 /**
  * BrowserOS — System Monitor (Native System Component)
@@ -39,7 +39,7 @@ export function registerSysMonitor({ wm, db, kernel, settings, fs }) {
 
       const theme = settings.getTheme();
       infoGrid.appendChild(stat('OS Version', 'BrowserOS ' + OS_VERSION));
-      infoGrid.appendChild(stat('BOS API', '2.0'));
+      infoGrid.appendChild(stat('BOS API', BOS_API_VERSION));
       infoGrid.appendChild(stat('Screen', window.innerWidth + ' × ' + window.innerHeight));
       infoGrid.appendChild(stat('Locale', navigator.language || 'en-US'));
       infoGrid.appendChild(stat('Timezone', Intl.DateTimeFormat().resolvedOptions().timeZone));

@@ -15,7 +15,7 @@ Release preparation is staged in `browseros3dev`. The merge and rollout to `jg-t
 
 ## Release identity
 
-The product name is **BrowserOS** in onboarding and ordinary UI. Settings, System Monitor, Terminal system information and the BOS OS-version API report **3.0.0**. Terminal remains **v3.0**. BOS API compatibility stays at **2.0**; database schema and backup-format versions are independent and have not been relabeled as OS versions.
+The product name is **BrowserOS** in onboarding and ordinary UI. Settings, System Monitor, Terminal system information and the BOS OS-version API report **3.0.0**. Terminal remains **v3.0**. BOS API is **2.5**, retaining compatibility with apps that require 2.0; database schema and backup-format versions are independent and have not been relabeled as OS versions.
 
 The bundled Info package is version 3.0.0. At boot, older protected Info installs are refreshed while preserving their storage identity and installation date. Other installed apps and profile data are not reset.
 
