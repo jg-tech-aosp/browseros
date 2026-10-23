@@ -46,7 +46,7 @@ The development preview and main site currently use separate profile databases. 
 
 Native tools are part of the desktop. Calculator, Markdown Viewer and Info are bundled `.beep` apps; additional packages come from the App Store. Installable apps run in sandboxed frames, declare supported file types, and request specific permissions. Review those requests before granting access.
 
-- Clear Ice’s curved glass magnification works in Chrome and Edge. Firefox retains standard glass blur but does not support that bending effect.
+- Clear Ice’s curved ice magnification works in Chrome and Edge. Firefox retains standard ice blur but does not support that bending effect.
 - The Browser app embeds websites. Sites that block embedding cannot load inside it.
 - Video and audio formats depend on the browser’s codecs and playback policies.
 - Writer, Stage and Cells use their own formats. DOCX, PPTX and XLSX compatibility is groundwork for future development, not a shipped feature.
