@@ -1,5 +1,7 @@
+import { OS_VERSION, BOS_API_VERSION } from '../version.js';
+
 /**
- * BrowserOS v2 — .beep Launcher
+ * BrowserOS — .beep Launcher
  * src/apps/launcher.js
  *
  * Handles installing and launching .beep apps.
@@ -33,6 +35,20 @@ function arrayBufferToBase64(buffer) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function normalizeFileTypes(fileTypes) {
+  if (fileTypes === undefined) return [];
+  if (!Array.isArray(fileTypes)) throw new Error('.beep manifest "fileTypes" must be an array');
+  return [...new Set(fileTypes.map(value => {
+    if (typeof value !== 'string' || !value.trim()) throw new Error('Invalid file type in .beep manifest');
+    let type = value.trim().toLowerCase();
+    if (!type.startsWith('.')) type = '.' + type;
+    if (!/^\.[a-z0-9][a-z0-9.+_-]*$/.test(type)) {
+      throw new Error('Invalid file type in .beep manifest: ' + value);
+    }
+    return type;
+  }))];
+}
 
 function generateInstanceId(appId) {
   return `${appId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -73,9 +89,10 @@ function validateManifest(manifest, path) {
   if (!Array.isArray(manifest.events)) {
     throw new Error('.beep manifest "events" must be an array');
   }
+  normalizeFileTypes(manifest.fileTypes);
   // BOS version check
   const required_bos = parseFloat(manifest.bos);
-  const current_bos  = 2.0;
+  const current_bos  = parseFloat(BOS_API_VERSION);
   if (required_bos > current_bos) {
     throw new Error(
       `App requires BOS ${manifest.bos} but this OS runs BOS ${current_bos}. Update BrowserOS.`
@@ -114,8 +131,8 @@ function buildSrcdoc(bosClientSrc, appMainSrc, manifest) {
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { width: 100%; height: 100%; overflow: hidden; }
   body {
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    color: #e0e0ff;
+    font-family: var(--font, 'Segoe UI', system-ui, sans-serif);
+    color: var(--text, #e0e0ff);
     background: transparent;
     width: 100%; height: 100%;
     overflow: hidden;
@@ -138,6 +155,17 @@ function buildSrcdoc(bosClientSrc, appMainSrc, manifest) {
 </head>
 <body>
 <script>
+// Browser-level window switching must cross the sandbox boundary explicitly.
+// Forward only the fixed chord; the parent validates this iframe's ownership.
+window.addEventListener('keydown', event => {
+  const editable = event.target?.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="textbox"]');
+  if (editable || !event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey || event.code !== 'Space') return;
+  event.preventDefault();
+  event.stopPropagation();
+  window.parent.postMessage({ type: 'bos:appSwitcher' }, '*');
+}, true);
+</script>
+<script>
 // ── BOS Client Library ──────────────────────────────────────────────────
 ${bosClientSrc}
 </script>
@@ -146,29 +174,27 @@ ${bosClientSrc}
 (async function() {
   // Wait for boot payload so BOS.os.* is ready
   await BOS.ready();
-  // Apply theme CSS variables immediately
-  const _bosTheme = BOS.os.theme();
-  if (_bosTheme) {
-    const r = document.documentElement;
-    if (_bosTheme.accent)    r.style.setProperty('--accent',     _bosTheme.accent);
-    if (_bosTheme.font)      r.style.setProperty('--font',       _bosTheme.font);
-    if (_bosTheme.darkMode !== undefined) {
-      r.style.setProperty('--bg',         _bosTheme.darkMode ? '#1e1e2e' : '#f0f0f5');
-      r.style.setProperty('--text',       _bosTheme.darkMode ? '#e0e0ff' : '#111');
-      r.style.setProperty('--text-dim',   _bosTheme.darkMode ? '#8888aa' : '#666');
-      r.style.setProperty('--sidebar-bg', _bosTheme.darkMode ? '#15152a' : '#d8d8ec');
-      r.style.setProperty('--hover',      _bosTheme.darkMode ? '#2d2d4e' : '#c8c8e8');
-      r.style.setProperty('--win-bg',     _bosTheme.darkMode ? '#1e1e2e' : '#f0f0f5');
-      r.style.setProperty('--input-bg',   _bosTheme.darkMode ? '#2a2a3e' : '#e8e8f0');
-      r.style.setProperty('--win-border', _bosTheme.darkMode ? '#3a3a5c' : '#ccc');
-    }
-  }
-  // Listen for theme changes
-  BOS.on('themeChanged', (t) => {
+  // Shared colors are provided by the host; no parent DOM access is needed.
+  function applyAppTheme(t) {
+    if (!t) return;
     const r = document.documentElement;
     if (t.accent) r.style.setProperty('--accent', t.accent);
-    if (t.font)   r.style.setProperty('--font',   t.font);
-  });
+    if (t.font) r.style.setProperty('--font', t.font);
+    const c = t.colors || (t.darkMode === false
+      ? { bg:'#f0f0f5', text:'#111', textDim:'#666', panel:'#fafaff', hover:'#ddd', titlebar:'#e0e0f0', border:'#ccc' }
+      : { bg:'#1e1e2e', text:'#e0e0ff', textDim:'#a6a6c5', panel:'#141428', hover:'#2d2d4e', titlebar:'#2a2a4a', border:'#3a3a5c' });
+    const variables = {
+      '--bg':c.bg, '--text':c.text, '--text-dim':c.textDim,
+      '--sidebar-bg':c.panel, '--hover':c.hover, '--win-bg':c.bg,
+      '--input-bg':c.titlebar, '--win-border':c.border, '--border':c.border,
+    };
+    Object.entries(variables).forEach(([key, value]) => {
+      if (typeof value === 'string') r.style.setProperty(key, value);
+    });
+    r.style.colorScheme = t.darkMode === false ? 'light' : 'dark';
+  }
+  applyAppTheme(BOS.os.theme());
+  BOS.on('themeChanged', applyAppTheme);
   // Run app
   try {
 ${appMainSrc}
@@ -259,6 +285,8 @@ export class Launcher {
       emoji:       iconEmoji,     // always set, used as text fallback
       permissions: manifest.permissions,
       requestedPermissions: manifest.permissions,
+      fileTypes:    normalizeFileTypes(manifest.fileTypes),
+      fileTypeManifestVersion: 1,
       storageId:   createStorageId(),
       permissionDecisionVersion: 1,
       events:      manifest.events,
@@ -350,6 +378,7 @@ export class Launcher {
     const windowIcon = app.icon || app.emoji || '⚡';
     const iframe = this._wm.createAppWindow({
       instanceId,
+      appId: app.id,
       title:  app.name,
       icon:   windowIcon,
       width:  app.width,
@@ -382,7 +411,7 @@ export class Launcher {
     // Build and send boot payload
     const theme = await this._settings.getTheme();
     await this._kernel.sendBootPayload(instanceId, {
-      version: '2.1.2',
+      version: OS_VERSION,
       theme,
       args,
       env: {
@@ -402,26 +431,62 @@ export class Launcher {
     return instanceId;
   }
 
+  async refreshFileTypes() {
+    const apps = await this._db.apps.all();
+    for (const app of apps) {
+      if (app.fileTypeManifestVersion === 1) continue;
+      try {
+        let zipArrayBuffer;
+        if (app.zipData) {
+          const binary = atob(app.zipData);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          zipArrayBuffer = bytes.buffer;
+        } else {
+          const content = await this._fs.read(app.path);
+          if (!content) continue;
+          zipArrayBuffer = content.startsWith('data:')
+            ? await fetch(content).then(response => response.arrayBuffer())
+            : Uint8Array.from(atob(content), character => character.charCodeAt(0)).buffer;
+        }
+        const zip = await JSZip.loadAsync(zipArrayBuffer);
+        const manifestFile = zip.file('manifest.json');
+        if (!manifestFile) continue;
+        const manifest = JSON.parse(await manifestFile.async('string'));
+        app.fileTypes = normalizeFileTypes(manifest.fileTypes);
+        app.fileTypeManifestVersion = 1;
+        await this._db.apps.put(app);
+      } catch (error) {
+        console.warn('[launcher] Could not update file type metadata for ' + app.id + ':', error.message);
+      }
+    }
+  }
+
   // ─── Seed inbox apps ───────────────────────────────────────────────────────
 
   /**
    * Seed inbox apps on first boot.
    * Fetches each .beep from /apps/{name}.beep, writes to virtual FS, installs as protected.
-   * On subsequent boots the apps are already in IndexedDB so this is a no-op.
+   * Existing installs are preserved unless an explicit newer protected bundle is shipped.
    *
    * @param {string[]} appIds - e.g. ['calculator', 'texteditor', ...]
    */
-  async seedInboxApps(appIds) {
+  async seedInboxApps(appIds, bundledVersions = {}) {
     for (const appId of appIds) {
       const existing = await this._db.apps.get(appId);
-      if (existing) continue;
+      // Only update protected bundles with an explicitly shipped newer version.
+      // Ordinary installs and app-private data retain their ownership and identity.
+      const bundledVersion = bundledVersions[appId];
+      const needsUpdate = existing?.protected && bundledVersion &&
+        String(existing.version).localeCompare(bundledVersion, undefined, { numeric: true }) < 0;
+      if (existing && !needsUpdate) continue;
 
       const url    = `${BASE_URL}apps/${appId}.beep`;
       const fspath = `/Apps/${appId}.beep`;
 
       try {
         console.log(`[launcher] Seeding ${appId} from ${url}...`);
-        const res = await fetch(url);
+        const res = await fetch(url, { cache: 'no-cache' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         // Load zip directly from response — no virtual FS round-trip
@@ -432,6 +497,9 @@ export class Launcher {
         if (!manifestFile) throw new Error(`No manifest.json in ${appId}.beep`);
         const manifest = JSON.parse(await manifestFile.async('string'));
         validateManifest(manifest, fspath);
+        if (bundledVersion && manifest.version !== bundledVersion) {
+          throw new Error('Bundled ' + appId + ' version does not match this release');
+        }
 
         const iconDataUrl = (manifest.icon && zip.file(manifest.icon))
           ? await extractIcon(zip, manifest.icon)
@@ -446,14 +514,16 @@ export class Launcher {
           emoji:       manifest.emoji || '⚡',
           permissions: manifest.permissions,
           requestedPermissions: manifest.permissions,
-          storageId:   createStorageId(),
+          fileTypes:    normalizeFileTypes(manifest.fileTypes),
+          fileTypeManifestVersion: 1,
+          storageId:   existing?.storageId || createStorageId(),
           permissionDecisionVersion: 1,
           events:      manifest.events,
           entry:       manifest.entry,
           bos:         manifest.bos,
           width:       manifest.width  || 640,
           height:      manifest.height || 480,
-          installedAt: Date.now(),
+          installedAt: existing?.installedAt || Date.now(),
           protected:   true,
           // Store the raw zip as base64 for later launching
           zipData:     await arrayBufferToBase64(arrayBuffer),
@@ -467,3 +537,5 @@ export class Launcher {
     }
   }
 }
+
+

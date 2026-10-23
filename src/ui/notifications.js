@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Notifications
+ * BrowserOS — Notifications
  * src/ui/notifications.js
  *
  * Central notification manager.

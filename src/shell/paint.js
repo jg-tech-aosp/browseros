@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Paint (Native System Component)
+ * BrowserOS — Paint (Native System Component)
  * src/shell/paint.js
  */
 

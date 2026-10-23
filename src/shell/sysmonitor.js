@@ -1,13 +1,18 @@
+import { OS_VERSION, BOS_API_VERSION } from '../version.js';
+
 /**
- * BrowserOS v2 — System Monitor (Native System Component)
+ * BrowserOS — System Monitor (Native System Component)
  * src/shell/sysmonitor.js
  */
+
+import { systemWidget } from './widgets.js';
 
 export function registerSysMonitor({ wm, db, kernel, settings, fs }) {
 
   wm.registerSystemApp('sysmonitor', {
     title:  'System Monitor',
     icon:   '📊',
+    widgets: [systemWidget],
     width:  500,
     height: 460,
     mount(container, instanceId) {
@@ -33,8 +38,8 @@ export function registerSysMonitor({ wm, db, kernel, settings, fs }) {
       }
 
       const theme = settings.getTheme();
-      infoGrid.appendChild(stat('OS Version', 'BrowserOS 2.1.2'));
-      infoGrid.appendChild(stat('BOS API', '2.0'));
+      infoGrid.appendChild(stat('OS Version', 'BrowserOS ' + OS_VERSION));
+      infoGrid.appendChild(stat('BOS API', BOS_API_VERSION));
       infoGrid.appendChild(stat('Screen', window.innerWidth + ' × ' + window.innerHeight));
       infoGrid.appendChild(stat('Locale', navigator.language || 'en-US'));
       infoGrid.appendChild(stat('Timezone', Intl.DateTimeFormat().resolvedOptions().timeZone));
@@ -126,3 +131,5 @@ export function registerSysMonitor({ wm, db, kernel, settings, fs }) {
     }
   });
 }
+
+

@@ -1,7 +1,7 @@
 import { isImageFile } from './imageviewer.js';
 
 /**
- * BrowserOS v2 — Desktop
+ * BrowserOS — Desktop
  * src/shell/desktop.js
  *
  * Manages the desktop surface:
@@ -12,13 +12,14 @@ import { isImageFile } from './imageviewer.js';
  */
 
 export class Desktop {
-  constructor({ fs, db, wm, launcher, kernel, settings }) {
+  constructor({ fs, db, wm, launcher, kernel, settings, fileAssociations }) {
     this._fs       = fs;
     this._db       = db;
     this._wm       = wm;
     this._launcher = launcher;
     this._kernel   = kernel;
     this._settings = settings;
+    this._fileAssociations = fileAssociations;
     this._icons    = new Map(); // key → { label, icon, appId, fspath, beep, el, gridX, gridY }
 
     // Grid config
@@ -207,14 +208,14 @@ export class Desktop {
     return { col, row };
   }
 
-  addIcon({ label, icon, fspath, appId, beep, shortcut = false }) {
+  addIcon({ label, icon, fspath, appId, beep, shortcut = false, isDirectory = false }) {
     const key = fspath || appId || label;
     if (this._icons.has(key)) return;
     const { col, row } = this._getSavedOrNextCell(key);
-    return this._addIconEl({ label, icon, fspath, appId, beep, shortcut, col, row });
+    return this._addIconEl({ label, icon, fspath, appId, beep, shortcut, isDirectory, col, row });
   }
 
-  _addIconEl({ label, icon, fspath, appId, beep, shortcut = false, col, row }) {
+  _addIconEl({ label, icon, fspath, appId, beep, shortcut = false, isDirectory = false, col, row }) {
     const key = fspath || appId || label;
     const { x, y } = this._cellToPixel(col, row);
 
@@ -236,7 +237,7 @@ export class Desktop {
         margin-top:4px;display:block;word-break:break-word;line-height:1.3">${label}</span>
     `;
 
-    const ic = { label, icon, fspath, appId, beep, shortcut, el, gridX: col, gridY: row };
+    const ic = { label, icon, fspath, appId, beep, shortcut, isDirectory, el, gridX: col, gridY: row };
     el._ic = ic;
     this._icons.set(key, ic);
 
@@ -295,7 +296,7 @@ export class Desktop {
         icon = this._fileIcon(item.name);
       }
 
-      this.addIcon({ label, icon, fspath, beep });
+      this.addIcon({ label, icon, fspath, beep, isDirectory: item.type === 'dir' });
     }
   }
 
@@ -333,30 +334,7 @@ export class Desktop {
       this._wm.openSystemApp('filemanager', { path });
       return;
     }
-    const ext = name.split('.').pop().toLowerCase();
-    if (ext === 'stage') {
-      if (!await this._db.apps.get('stage')) {
-        this._wm.notify('Install Stage from the App Store to open this presentation');
-        return;
-      }
-      try { await this._launcher.launchById('stage', { file: path }); }
-      catch (error) { this._wm.notify('Could not open Stage: ' + error.message); }
-    } else if (ext === 'writer') {
-      if (!await this._db.apps.get('writer')) {
-        this._wm.notify('Install Writer from the App Store to open this document');
-        return;
-      }
-      try { await this._launcher.launchById('writer', { file: path }); }
-      catch (error) { this._wm.notify('Could not open Writer: ' + error.message); }
-    } else if (['txt','md','js','json','html','css'].includes(ext)) {
-      this._wm.openSystemApp('texteditor', { file: path });
-    } else if (['mp3','wav','ogg'].includes(ext)) {
-      this._wm.openSystemApp('musicplayer', { file: path });
-    } else if (isImageFile(name)) {
-      this._wm.openSystemApp('imageviewer', { file: path });
-    } else {
-      this._wm.notify('No app to open: ' + name);
-    }
+    await this._fileAssociations.open(path, name);
   }
 
   // ─── Drag (grid-snapping repositioning) ────────────────────────────────────
@@ -557,6 +535,7 @@ export class Desktop {
       { label: '🎨 Paint',        action: () => this._wm.openSystemApp('paint') },
       'sep',
       { label: '⚙️ Settings',    action: () => this._wm.openSystemApp('settings') },
+      { label: '🧩 Add widgets', action: () => document.dispatchEvent(new CustomEvent('bos:showWidgets')) },
     ]);
   }
 
@@ -568,8 +547,12 @@ export class Desktop {
       { label: '📂 Open', action: () => this._launch(ic) },
     ];
 
-    if (isImage && ic.fspath) {
-      items.push({ label: '🎨 Open in Paint', action: () => this._wm.openSystemApp('paint') });
+    if (ic.fspath && !ic.beep && !ic.isDirectory) {
+      items.push({ label: '🧭 Open with', action: () => this._fileAssociations.openWith(ic.fspath, ic.label) });
+    }
+
+    if (isImage && ic.fspath && !ic.isDirectory) {
+      items.push({ label: '🎨 Open in Paint', action: () => this._wm.openSystemApp('paint', { file: ic.fspath }) });
     }
 
     if (ic.shortcut && ic.appId) {
@@ -590,8 +573,8 @@ export class Desktop {
           else this._wm.notify('Rename failed: ' + res.error);
         }
       }},
-      { label: '🗑️ Delete', action: async () => {
-        if (!confirm(`Delete "${ic.label}"?`)) return;
+      { label: '🗑️ Move to Recycle Bin', action: async () => {
+        if (!confirm(`Move "${ic.label}" to the Recycle Bin?`)) return;
         if (ic.fspath) {
           const res = await this._fs.rm(ic.fspath);
           if (res.ok) {
@@ -624,8 +607,8 @@ export class Desktop {
     menu.style.cssText = `
       position:fixed; left:${Math.min(x, window.innerWidth-200)}px;
       top:${Math.min(y, window.innerHeight - items.length*36)}px;
-      background:rgba(20,20,40,0.97); backdrop-filter:blur(20px);
-      border:1px solid rgba(255,255,255,0.12); border-radius:8px;
+      background:var(--wm-panel-bg); backdrop-filter:var(--wm-backdrop-filter);
+      border:1px solid var(--wm-panel-border); border-radius:8px;
       padding:4px; z-index:99999; min-width:180px;
       box-shadow:0 8px 32px rgba(0,0,0,0.5);
     `;
@@ -639,7 +622,7 @@ export class Desktop {
         const el = document.createElement('div');
         el.style.cssText = `
           padding:7px 14px; border-radius:4px; font-size:13px;
-          cursor:pointer; color:#e0e0ff; transition:background 0.1s;
+          cursor:pointer; color:var(--wm-text); transition:background 0.1s;
         `;
         el.textContent = item.label;
         el.onmouseenter = () => el.style.background = 'rgba(255,255,255,0.1)';
@@ -654,3 +637,5 @@ export class Desktop {
     setTimeout(() => document.addEventListener('click', close), 0);
   }
 }
+
+

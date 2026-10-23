@@ -1,5 +1,7 @@
+import { OS_VERSION } from '../version.js';
+
 /**
- * BrowserOS v2 — Kernel
+ * BrowserOS — Kernel
  * src/kernel/kernel.js
  *
  * The postMessage router. Every message from every app iframe passes through here.
@@ -61,6 +63,10 @@ export class Kernel {
     if (!inst) return;
 
     const { reqId, type, payload = {} } = e.data;
+
+    // These non-RPC signals are handled by the window manager, which checks
+    // exact iframe ownership. Do not generate malformed-request responses.
+    if (typeof reqId !== 'number' && ['bos.closeGuard', 'bos.documentDirty', 'bos.closeDecision'].includes(type)) return;
 
     // Validate message shape
     if (typeof reqId !== 'number' || typeof type !== 'string') {
@@ -295,7 +301,7 @@ export class Kernel {
       // ── OS info ─────────────────────────────────────────────────────────────
 
       case 'os.version': {
-        return '2.1.2';
+        return OS_VERSION;
       }
 
       case 'os.theme': {
@@ -362,3 +368,5 @@ export class Kernel {
     });
   }
 }
+
+

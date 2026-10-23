@@ -1,9 +1,11 @@
+import { OS_VERSION, BOS_API_VERSION, TERMINAL_VERSION } from '../version.js';
+
 /**
- * BrowserOS v2 — Terminal (Native System Component)
+ * BrowserOS — Terminal (Native System Component)
  * src/shell/terminal.js
  */
 
-export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
+export function registerTerminal({ wm, fs, launcher, kernel, settings, db }) {
 
   wm.registerSystemApp('terminal', {
     title:  'Terminal',
@@ -14,6 +16,7 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
       let cwd = args?.path || '/';
       const history = [];
       let histPos = -1;
+      const startedAt = Date.now();
 
       container.style.cssText = 'display:flex;flex-direction:column;height:100%;overflow:hidden;background:#0a0a14';
 
@@ -41,7 +44,9 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
       // ── Helpers ───────────────────────────────────────────────────────────────
 
       function updatePrompt() {
-        promptEl.textContent = 'root@bos:' + (cwd || '/') + ' $ ';
+        const profile = settings?.get('userProfile');
+        const username = String(profile?.name || 'user').replace(/[^a-z0-9_-]/gi, '_');
+        promptEl.textContent = username + '@browseros:' + (cwd || '/') + ' $ ';
       }
 
       function print(text, color) {
@@ -66,19 +71,23 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
       }
 
       function resolvePath(p) {
-        if (!p || p === '~') return '/';
-        if (p.startsWith('/')) return p;
-        if (p === '..') {
-          const parts = cwd.split('/').filter(Boolean);
-          parts.pop();
-          return '/' + parts.join('/') || '/';
+        p = String(p || '/').trim();
+        if (p === '~') p = '/';
+        else if (p.startsWith('~/')) p = '/' + p.slice(2);
+        const absolute = p.startsWith('/') ? p : (cwd.replace(/\/$/, '') + '/' + p);
+        const parts = [];
+        for (const part of absolute.split('/')) {
+          if (!part || part === '.') continue;
+          if (part === '..') parts.pop();
+          else parts.push(part);
         }
-        if (p.startsWith('../')) {
-          const parts = cwd.split('/').filter(Boolean);
-          parts.pop();
-          return resolvePath('/' + parts.join('/') + '/' + p.slice(3));
-        }
-        return (cwd.replace(/\/$/, '') + '/' + p).replace('//', '/');
+        return '/' + parts.join('/');
+      }
+
+      function escapeHTML(value) {
+        return String(value).replace(/[&<>"']/g, ch => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        })[ch]);
       }
 
       // ── Commands ──────────────────────────────────────────────────────────────
@@ -91,44 +100,64 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
           print('  ls [path]          List directory contents');
           print('  cd [path]          Change directory');
           print('  pwd                Print working directory');
-          print('  mkdir <name>       Create directory');
-          print('  touch <name>       Create empty file');
-          print('  rm <path>          Remove file or empty directory');
-          print('  cat <path>         Print file contents');
-          print('  cp <src> <dst>     Copy file');
-          print('  mv <src> <dst>     Move/rename file');
-          print('  find [path]        List all files recursively');
-          print('  wc <path>          Word/line/char count');
-          print('  stat <path>        File info');
+          print('  mkdir [-p] <path>  Create a directory and optional parents');
+          print('  touch <path>       Create an empty file');
+          print('  write <path> <text> Create or replace a text file');
+          print('  append <path> <text> Append text to a file');
+          print('  rm <path>          Remove a file or empty directory');
+          print('  rmdir <path>       Remove an empty directory');
+          print('  cat <path>         Print a text file');
+          print('  head/tail [n] <path> Show the first or last lines');
+          print('  grep <text> <path> Search lines for literal text');
+          print('  cp <src> <dst>     Copy a file');
+          print('  mv <src> <dst>     Move or rename a file or directory');
+          print('  find [path]        List paths recursively');
+          print('  wc <path>          Word/line/character count');
+          print('  stat <path>        File information');
           print('  tree [path]        Directory tree');
           print('');
           print('Apps:');
-          print('  open <appId>       Open a system app');
-          print('  launch <path>      Launch a .beep app');
-          print('  apps               List installed apps');
+          print('  open <appId> [file] Open a native or installed app');
+          print('  launch <path> [file] Launch a .beep app');
+          print('  apps               List native and installed apps');
           print('');
           print('System:');
           print('  echo <text>        Print text');
-          print('  clear              Clear terminal');
           print('  date               Print current date/time');
           print('  whoami             Print current user');
-          print('  uname [-a]         System info');
+          print('  uname [-a]         System information');
+          print('  sysinfo            Browser and session details');
+          print('  storage            Browser storage usage estimate');
+          print('  uptime             Time since this Terminal opened');
           print('  version            BrowserOS version');
-          print('  history            Command history');
+          print('  history [-c]       Show or clear session history');
+          print('  clear              Clear output (Ctrl+L)');
           print('  exit               Close terminal');
         },
 
         async ls(args) {
-          const path = args[0] ? resolvePath(args[0]) : cwd;
+          const pathArg = args.find(a => !a.startsWith('-'));
+          const path = pathArg ? resolvePath(pathArg) : cwd;
           const items = await fs.ls(path);
           if (!items) { print('ls: cannot access "' + path + '": No such directory', '#ff8888'); return; }
           if (items.length === 0) { print('(empty)', '#8888aa'); return; }
+          const long = args.includes('-l') || args.includes('--long');
+          const unknownFlag = args.find(a => a.startsWith('-') && a !== '-l' && a !== '--long');
+          if (unknownFlag) { print('ls: unsupported option: ' + unknownFlag, '#ff8888'); return; }
+          if (long) {
+            items.forEach(item => print(
+              (item.type === 'dir' ? 'DIR ' : 'FILE') + '\t' +
+              String(item.size || 0).padStart(8) + ' bytes\t' +
+              new Date(item.modified || 0).toLocaleString() + '\t' + item.name,
+              item.type === 'dir' ? '#66aaff' : '#aaffaa'
+            ));
+            return;
+          }
           const dirs  = items.filter(i => i.type === 'dir').map(i => i.name + '/');
           const files = items.filter(i => i.type !== 'dir').map(i => i.name);
-          // Color dirs blue, files green
           const parts = [
-            ...dirs.map(d => `<span style="color:#66aaff">${d}</span>`),
-            ...files.map(f => `<span style="color:#aaffaa">${f}</span>`),
+            ...dirs.map(d => `<span style="color:#66aaff">${escapeHTML(d)}</span>`),
+            ...files.map(f => `<span style="color:#aaffaa">${escapeHTML(f)}</span>`),
           ];
           printHTML(parts.join('  '));
         },
@@ -144,9 +173,28 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
         pwd() { print(cwd); },
 
         async mkdir(args) {
-          if (!args[0]) { print('mkdir: missing operand', '#ff8888'); return; }
-          const res = await fs.mkdir(resolvePath(args[0]));
-          if (!res?.ok) print('mkdir: failed', '#ff8888');
+          const recursive = args[0] === '-p';
+          const rawPath = args[recursive ? 1 : 0];
+          if (!rawPath) { print('mkdir: missing operand', '#ff8888'); return; }
+          const path = resolvePath(rawPath);
+          if (!recursive) {
+            const result = await fs.mkdir(path);
+            if (!result.ok) print('mkdir: ' + result.error, '#ff8888');
+            else print('Created directory ' + path);
+            return;
+          }
+          let current = '';
+          for (const part of path.split('/').filter(Boolean)) {
+            current += '/' + part;
+            const existing = await fs.stat(current);
+            if (existing) {
+              if (existing.type !== 'dir') { print('mkdir: not a directory: ' + current, '#ff8888'); return; }
+              continue;
+            }
+            const result = await fs.mkdir(current);
+            if (!result.ok) { print('mkdir: ' + result.error, '#ff8888'); return; }
+          }
+          print('Created directory path ' + path);
         },
 
         async touch(args) {
@@ -158,10 +206,45 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
           else print('Created ' + result.path);
         },
 
+        async write(args) {
+          if (args.length < 2) { print('write: usage: write <path> <text>', '#ff8888'); return; }
+          const path = resolvePath(args[0]);
+          if (await fs.stat(path) && !confirm(path + ' already exists. Replace its contents?')) {
+            print('write: cancelled', '#8888aa');
+            return;
+          }
+          const result = await fs.write(path, args.slice(1).join(' '));
+          if (!result.ok) print('write: ' + result.error, '#ff8888');
+          else print('Wrote ' + path);
+        },
+
+        async append(args) {
+          if (args.length < 2) { print('append: usage: append <path> <text>', '#ff8888'); return; }
+          const path = resolvePath(args[0]);
+          const existing = await fs.read(path);
+          if (existing === null && await fs.stat(path)) { print('append: cannot append to a directory', '#ff8888'); return; }
+          const result = await fs.write(path, (existing || '') + args.slice(1).join(' '));
+          if (!result.ok) print('append: ' + result.error, '#ff8888');
+          else print('Appended to ' + path);
+        },
+
         async rm(args) {
           if (!args[0]) { print('rm: missing operand', '#ff8888'); return; }
-          const res = await fs.rm(resolvePath(args[0]));
-          if (res?.error) print('rm: ' + res.error, '#ff8888');
+          const path = resolvePath(args[0]);
+          const result = await fs.rm(path);
+          if (!result.ok) print('rm: ' + result.error, '#ff8888');
+          else print('Removed ' + path);
+        },
+
+        async rmdir(args) {
+          if (!args[0]) { print('rmdir: missing operand', '#ff8888'); return; }
+          const path = resolvePath(args[0]);
+          const stat = await fs.stat(path);
+          if (!stat) { print('rmdir: no such directory: ' + path, '#ff8888'); return; }
+          if (stat.type !== 'dir') { print('rmdir: not a directory: ' + path, '#ff8888'); return; }
+          const result = await fs.rm(path);
+          if (!result.ok) print('rmdir: ' + result.error, '#ff8888');
+          else print('Removed directory ' + path);
         },
 
         async cat(args) {
@@ -172,22 +255,85 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
           content.split('\n').forEach(l => print(l));
         },
 
+        async head(args) {
+          let count = 10;
+          let pathArg = args[0];
+          if (/^\d+$/.test(args[0] || '') && args[1]) { count = Math.min(1000, Number(args[0])); pathArg = args[1]; }
+          if (!pathArg) { print('head: usage: head [line-count] <path>', '#ff8888'); return; }
+          const content = await fs.read(resolvePath(pathArg));
+          if (content === null) { print('head: cannot read: ' + pathArg, '#ff8888'); return; }
+          if (content.startsWith('data:')) { print('[binary file]', '#8888aa'); return; }
+          content.split('\n').slice(0, count).forEach(line => print(line));
+        },
+
+        async tail(args) {
+          let count = 10;
+          let pathArg = args[0];
+          if (/^\d+$/.test(args[0] || '') && args[1]) { count = Math.min(1000, Number(args[0])); pathArg = args[1]; }
+          if (!pathArg) { print('tail: usage: tail [line-count] <path>', '#ff8888'); return; }
+          const content = await fs.read(resolvePath(pathArg));
+          if (content === null) { print('tail: cannot read: ' + pathArg, '#ff8888'); return; }
+          if (content.startsWith('data:')) { print('[binary file]', '#8888aa'); return; }
+          const lines = content.split('\n');
+          lines.slice(Math.max(0, lines.length - count)).forEach(line => print(line));
+        },
+
+        async grep(args) {
+          if (args.length < 2) { print('grep: usage: grep <literal-text> <path>', '#ff8888'); return; }
+          const content = await fs.read(resolvePath(args[1]));
+          if (content === null) { print('grep: cannot read: ' + args[1], '#ff8888'); return; }
+          if (content.startsWith('data:')) { print('[binary file]', '#8888aa'); return; }
+          let matches = 0;
+          content.split('\n').forEach((line, index) => {
+            if (line.includes(args[0])) { print((index + 1) + ':' + line); matches++; }
+          });
+          if (!matches) print('No matches found.', '#8888aa');
+        },
+
         echo(args) { print(args.join(' ')); },
 
-        clear() { out.innerHTML = ''; },
+        clear() { out.replaceChildren(); },
 
         date() { print(new Date().toString()); },
 
-        whoami() { print('root'); },
+        whoami() {
+          const profile = settings?.get('userProfile');
+          print(profile?.name || 'User');
+        },
 
         uname(args) {
-          print(args[0] === '-a' ? 'BrowserOS 2.1.2 (HTML5/IndexedDB) x86_64' : 'BrowserOS');
+          print(args[0] === '-a' ? 'BrowserOS ' + OS_VERSION + ' / HTML5 / IndexedDB / ES Modules' : 'BrowserOS');
         },
 
         version() {
-          print('BrowserOS v2.1.2');
-          print('BOS API: 2.0');
+          print('BrowserOS Terminal v' + TERMINAL_VERSION);
+          print('BrowserOS ' + OS_VERSION);
+          print('BOS API: ' + BOS_API_VERSION);
           print('Engine: HTML5 / ES Modules / IndexedDB');
+        },
+
+        sysinfo() {
+          print('BrowserOS ' + OS_VERSION, '#66aaff');
+          print('Browser: ' + (navigator.userAgent || 'Unknown'));
+          print('Platform: ' + (navigator.userAgentData?.platform || navigator.platform || 'Unknown'));
+          print('Language: ' + (navigator.language || 'Unknown'));
+          print('Viewport: ' + window.innerWidth + ' × ' + window.innerHeight);
+          print('Online: ' + (navigator.onLine ? 'yes' : 'no'));
+        },
+
+        async storage() {
+          if (!navigator.storage?.estimate) { print('Storage estimates are unavailable.', '#8888aa'); return; }
+          const estimate = await navigator.storage.estimate();
+          const used = (estimate.usage || 0) / 1024 / 1024;
+          const quota = (estimate.quota || 0) / 1024 / 1024;
+          print('Browser storage: ' + used.toFixed(1) + ' MB used of ' + quota.toFixed(0) + ' MB');
+        },
+
+        uptime() {
+          const seconds = Math.floor((Date.now() - startedAt) / 1000);
+          const hours = Math.floor(seconds / 3600);
+          const minutes = Math.floor((seconds % 3600) / 60);
+          print('Terminal session uptime: ' + (hours ? hours + 'h ' : '') + (minutes ? minutes + 'm ' : '') + (seconds % 60) + 's');
         },
 
         async cp(args) {
@@ -249,7 +395,7 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
               const item = items[i];
               const connector = last ? '└── ' : '├── ';
               const color = item.type === 'dir' ? '#66aaff' : '#aaffaa';
-              printHTML(prefix + connector + `<span style="color:${color}">${item.name}${item.type === 'dir' ? '/' : ''}</span>`);
+              printHTML(prefix + connector + `<span style="color:${color}">${escapeHTML(item.name)}${item.type === 'dir' ? '/' : ''}</span>`);
               if (item.type === 'dir') {
                 await walk((path === '/' ? '' : path) + '/' + item.name, prefix + (last ? '    ' : '│   '));
               }
@@ -259,41 +405,48 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
           await walk(base, '');
         },
 
-        open(args) {
-          if (!args[0]) { print('open: missing app id', '#ff8888'); return; }
-          wm.openSystemApp(args[0]);
+        async open(args) {
+          if (!args[0]) { print('open: usage: open <appId> [file-path]', '#ff8888'); return; }
+          const appId = args[0];
+          const fileArgs = args[1] ? { path: resolvePath(args[1]) } : {};
+          if (wm._systemApps?.has(appId)) {
+            wm.openSystemApp(appId, fileArgs);
+            return;
+          }
+          try {
+            if (!db || !await db.apps.get(appId)) { print('open: app not found: ' + appId, '#ff8888'); return; }
+            await launcher.launchById(appId, fileArgs);
+          } catch (error) { print('open: ' + error.message, '#ff8888'); }
         },
 
         async launch(args) {
-          if (!args[0]) { print('launch: missing path', '#ff8888'); return; }
+          if (!args[0]) { print('launch: usage: launch <package-path> [file-path]', '#ff8888'); return; }
           try {
-            await launcher.launch(resolvePath(args[0]));
-          } catch(e) { print('launch: ' + e.message, '#ff8888'); }
+            const fileArgs = args[1] ? { path: resolvePath(args[1]) } : {};
+            await launcher.launch(resolvePath(args[0]), fileArgs);
+          } catch (error) { print('launch: ' + error.message, '#ff8888'); }
         },
 
         async apps() {
-          // Native system apps
           print('Native system apps:', '#8888aa');
           for (const [id, app] of wm._systemApps) {
             print('  ' + app.icon + ' ' + id + ' — ' + app.title);
           }
+          const installed = db ? await db.apps.all() : [];
           print('');
-          // Installed .beep apps
-          const installed = await kernel.registry ? [] : [];
-          // Use DB directly via launcher
           print('Installed .beep apps:', '#8888aa');
-          // We don't have direct DB access here — show what we know
-          print('  (use File Manager → /Apps to see installed .beep files)');
+          if (!installed.length) print('  (none)', '#8888aa');
+          installed.forEach(app => print('  ' + (app.emoji || app.icon || '⚡') + ' ' + app.id + ' — ' + app.name + ' v' + app.version));
         },
 
-        history() {
+        history(args) {
+          if (args[0] === '-c') { history.length = 0; histPos = -1; print('Session history cleared.'); return; }
           if (!history.length) { print('(no history)', '#8888aa'); return; }
           history.forEach((cmd, i) => print('  ' + (i + 1) + '  ' + cmd));
         },
 
-        exit() {
-          wm.close(instanceId);
-        },
+        exit() { wm.close(instanceId); },
+        quit() { wm.close(instanceId); },
       };
 
       // ── Input handler ─────────────────────────────────────────────────────────
@@ -359,8 +512,8 @@ export function registerTerminal({ wm, fs, launcher, kernel, settings }) {
 
       // ── Boot message ──────────────────────────────────────────────────────────
 
-      print('BrowserOS Terminal v2.0', '#66aaff');
-      print('Type "help" for available commands. Ctrl+L to clear.', '#8888aa');
+      print('BrowserOS Terminal v' + TERMINAL_VERSION, '#66aaff');
+      print('Type "help" for commands. Tab completes paths; ↑/↓ browse session history; Ctrl+L clears output.', '#8888aa');
       print('');
       updatePrompt();
       inp.focus();

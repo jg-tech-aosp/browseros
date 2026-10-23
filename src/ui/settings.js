@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Settings
+ * BrowserOS — Settings
  * src/ui/settings.js
  *
  * Manages OS settings stored in IndexedDB.
@@ -7,13 +7,26 @@
  * so the rest of the OS can react to setting changes live.
  */
 
+import { themeColors, resolveWallpaper, DEFAULT_THEME } from './themes.js';
+
 const DEFAULTS = {
-  accent:     '#0078d4',
-  wallpaper:  'linear-gradient(135deg, #0f0c29, #302b63, #24243e)',
+  themeId: DEFAULT_THEME.id,
+  desktopWidgets: [],
+  accent:     DEFAULT_THEME.accent,
+  wallpaper:  DEFAULT_THEME.wallpaper,
   font:       "'Segoe UI', system-ui, sans-serif",
   darkMode:   true,
   transparency: true,
+  clearIce: true,
+  glassMagnification: true,
+  glassBlur: 16,
+  glassTint: 44,
   showClock:  true,
+  interfaceScale: 100,
+  reduceMotion: false,
+  debugLayoutOutlines: false,
+  iceMode: false,
+  fileAssociations: {},
   pinnedApps: ['filemanager', 'texteditor', 'terminal', 'calculator', 'browser', 'paint', 'appstore', 'musicplayer', 'markdownviewer', 'sysmonitor'],
   userProfile: { name: 'User', avatar: null },
 };
@@ -30,6 +43,8 @@ export class Settings {
     const saved = await this._db.settings.all();
     // Merge saved over defaults
     this._cache = { ...DEFAULTS, ...saved };
+    this.applyAccessibility();
+    this.applyDeveloperSettings();
     console.log('[settings] Loaded');
   }
 
@@ -41,11 +56,18 @@ export class Settings {
 
   getTheme() {
     return {
+      themeId: this._cache.themeId,
+      colors: themeColors(this._cache.themeId, this._cache.darkMode),
       accent:    this._cache.accent,
-      wallpaper: this._cache.wallpaper,
+      wallpaper: resolveWallpaper(this._cache.wallpaper, this._cache.darkMode),
       font:      this._cache.font,
       darkMode:  this._cache.darkMode,
+      reduceMotion: this._cache.reduceMotion,
       transparency: this._cache.transparency,
+      clearIce: this._cache.clearIce,
+      glassMagnification: this._cache.glassMagnification,
+      glassBlur: this._cache.glassBlur,
+      glassTint: this._cache.glassTint,
     };
   }
 
@@ -53,11 +75,38 @@ export class Settings {
     return { ...this._cache };
   }
 
+  applyAccessibility() {
+    const scale = [100, 115, 130].includes(Number(this._cache.interfaceScale))
+      ? Number(this._cache.interfaceScale) : 100;
+    document.documentElement.style.zoom = scale === 100 ? '' : scale + '%';
+    document.documentElement.classList.toggle('bos-reduce-motion', !!this._cache.reduceMotion);
+    let style = document.getElementById('bos-accessibility-styles');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'bos-accessibility-styles';
+      style.textContent = 'html.bos-reduce-motion *,html.bos-reduce-motion *::before,html.bos-reduce-motion *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}';
+      document.head.appendChild(style);
+    }
+  }
+
+  applyDeveloperSettings() {
+    document.documentElement.classList.toggle('bos-debug-layout', this._cache.debugLayoutOutlines === true);
+    let style = document.getElementById('bos-debug-layout-styles');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'bos-debug-layout-styles';
+      style.textContent = 'html.bos-debug-layout * { outline: 1px solid rgba(255, 0, 128, .28) !important; }';
+      document.head.appendChild(style);
+    }
+  }
+
   // ─── Write ─────────────────────────────────────────────────────────────────
 
   async set(key, value) {
     this._cache[key] = value;
     await this._db.settings.set(key, value);
+    this.applyAccessibility();
+    this.applyDeveloperSettings();
     // Fire onChange with new theme
     const theme = this.getTheme();
     this._handlers.forEach(fn => fn(theme, key, value));
@@ -68,6 +117,8 @@ export class Settings {
       this._cache[key] = value;
       await this._db.settings.set(key, value);
     }
+    this.applyAccessibility();
+    this.applyDeveloperSettings();
     const theme = this.getTheme();
     this._handlers.forEach(fn => fn(theme, null, null));
   }
@@ -77,6 +128,8 @@ export class Settings {
       await this._db.settings.set(key, value);
     }
     this._cache = { ...DEFAULTS };
+    this.applyAccessibility();
+    this.applyDeveloperSettings();
     const theme = this.getTheme();
     this._handlers.forEach(fn => fn(theme, null, null));
   }
@@ -91,3 +144,7 @@ export class Settings {
     this._handlers = this._handlers.filter(h => h !== fn);
   }
 }
+
+
+
+

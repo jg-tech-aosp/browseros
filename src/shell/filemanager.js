@@ -1,18 +1,23 @@
 import { isImageFile } from './imageviewer.js';
+import { filesWidget } from './widgets.js';
+import { styleNativeApp } from '../ui/native-layout.js';
+
+const TRASH_VIEW = '::recycle-bin::';
 
 /**
- * BrowserOS v2 — File Manager (Native System Component)
+ * BrowserOS — File Manager (Native System Component)
  * src/shell/filemanager.js
  *
  * Native app — not a .beep. Registered with WM via registerSystemApp.
  * Direct FS access, full drag-and-drop support.
  */
 
-export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) {
+export function registerFileManager({ wm, fs, db, launcher, kernel, settings, fileAssociations }) {
 
   wm.registerSystemApp('filemanager', {
     title:  'File Manager',
     icon:   '📁',
+    widgets: [filesWidget],
     width:  760,
     height: 520,
     mount(container, instanceId, args = {}) {
@@ -22,45 +27,46 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
       let selected = null;
       let clipboard = null;
 
-      container.style.cssText = 'display:flex;flex-direction:column;height:100%;overflow:hidden;background:var(--wm-bg);color:var(--wm-text)';
+      styleNativeApp(container, 'files');
 
       // ── Toolbar ──────────────────────────────────────────────────────────────
       const toolbar = document.createElement('div');
-      toolbar.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 8px;background:rgba(0,0,0,0.2);border-bottom:1px solid var(--wm-border);flex-shrink:0';
+      toolbar.className = 'bos-native-toolbar';
 
       function mkBtn(t, title) {
         const b = document.createElement('button');
+        b.type = 'button';
         b.textContent = t; b.title = title || t;
-        b.style.cssText = 'background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:var(--wm-text);padding:4px 8px;font-size:12px;cursor:pointer;transition:background 0.1s';
-        b.onmouseenter = () => b.style.background = 'rgba(255,255,255,0.15)';
-        b.onmouseleave = () => b.style.background = 'rgba(255,255,255,0.07)';
         return b;
       }
 
       const backBtn     = mkBtn('◀', 'Back');
       const upBtn       = mkBtn('▲', 'Up');
       const pathInput   = document.createElement('input');
-      pathInput.style.cssText = 'flex:1;background:var(--wm-hover);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:var(--wm-text);padding:4px 8px;font-size:12px;outline:none';
+      pathInput.className = 'bos-native-path';
+      pathInput.setAttribute('aria-label', 'Current folder');
       pathInput.readOnly = true;
       const newFolderBtn = mkBtn('+ Folder');
       const newFileBtn   = mkBtn('+ File');
       const importBtn    = mkBtn('⬆ Import', 'Import from your computer');
-      importBtn.style.cssText += ';background:rgba(0,120,212,0.2);border-color:rgba(0,120,212,0.4);color:#66aaff';
       const refreshBtn   = mkBtn('⟳', 'Refresh');
+      const emptyTrashBtn = mkBtn('🗑️ Empty Bin', 'Permanently delete everything in the Recycle Bin');
+      emptyTrashBtn.style.display = 'none';
       const fileInput    = document.createElement('input');
       fileInput.type = 'file'; fileInput.multiple = true; fileInput.style.display = 'none';
 
-      [backBtn, upBtn, pathInput, newFolderBtn, newFileBtn, importBtn, refreshBtn, fileInput].forEach(el => toolbar.appendChild(el));
+      [backBtn, upBtn, pathInput, newFolderBtn, newFileBtn, importBtn, refreshBtn, emptyTrashBtn, fileInput].forEach(el => toolbar.appendChild(el));
       container.appendChild(toolbar);
 
       // ── Layout ────────────────────────────────────────────────────────────────
       const layout = document.createElement('div');
-      layout.style.cssText = 'display:flex;flex:1;overflow:hidden';
+      layout.className = 'bos-native-file-layout';
       container.appendChild(layout);
 
       // Sidebar
-      const sidebar = document.createElement('div');
-      sidebar.style.cssText = 'width:160px;background:rgba(0,0,0,0.15);border-right:1px solid var(--wm-border);padding:8px;overflow-y:auto;flex-shrink:0';
+      const sidebar = document.createElement('nav');
+      sidebar.className = 'bos-native-sidebar';
+      sidebar.setAttribute('aria-label', 'File locations');
       layout.appendChild(sidebar);
 
       const SIDEBAR_ITEMS = [
@@ -70,28 +76,31 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
         { label: '🖼️ Pictures',   path: '/Pictures' },
         { label: '⬇️ Downloads',  path: '/Downloads' },
         { label: '🎵 Music',      path: '/Music' },
+        { label: '🗑️ Recycle Bin', path: TRASH_VIEW },
         { label: '⚡ Apps',       path: '/Apps' },
       ];
 
       function renderSidebar() {
-        sidebar.innerHTML = '';
-        SIDEBAR_ITEMS.forEach(item => {
-          const el = document.createElement('div');
-          el.className = 'bos-fm-sidebar-item';
+        // Keep navigation nodes alive so selection can fade between locations
+        // and keyboard focus survives a folder refresh.
+        if (!sidebar.children.length) SIDEBAR_ITEMS.forEach(item => {
+          const el = document.createElement('button');
+          el.type = 'button';
+          el.className = 'bos-fm-sidebar-item bos-native-nav-item';
           el.dataset.path = item.path;
-          el.style.cssText = 'padding:7px 8px;border-radius:4px;cursor:pointer;font-size:13px;transition:background 0.1s;' +
-            (cwd === item.path ? 'background:rgba(0,120,212,0.2);color:var(--wm-accent)' : 'color:var(--wm-text)');
           el.textContent = item.label;
-          el.onmouseenter = () => { if (cwd !== item.path) el.style.background = 'rgba(255,255,255,0.06)'; };
-          el.onmouseleave = () => { if (cwd !== item.path) el.style.background = ''; };
           el.onclick = () => navigate(item.path);
           sidebar.appendChild(el);
+        });
+        sidebar.querySelectorAll('.bos-fm-sidebar-item').forEach(button => {
+          if (cwd === button.dataset.path) button.setAttribute('aria-current', 'page');
+          else button.removeAttribute('aria-current');
         });
       }
 
       // Main area
       const mainArea = document.createElement('div');
-      mainArea.style.cssText = 'flex:1;overflow:auto;display:flex;flex-direction:column;position:relative';
+      mainArea.className = 'bos-native-file-content';
       layout.appendChild(mainArea);
 
       const grid = document.createElement('div');
@@ -100,7 +109,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
 
       // Status bar
       const statusBar = document.createElement('div');
-      statusBar.style.cssText = 'padding:4px 8px;font-size:11px;color:var(--wm-text-dim);border-top:1px solid var(--wm-border);background:rgba(0,0,0,0.15);flex-shrink:0';
+      statusBar.className = 'bos-native-status';
       container.appendChild(statusBar);
 
       // ── Helpers ───────────────────────────────────────────────────────────────
@@ -108,7 +117,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
       function fileIcon(name, type) {
         if (type === 'dir') return '📁';
         const ext = name.split('.').pop().toLowerCase();
-        const map = { txt:'📄', md:'📄', js:'📜', html:'🌐', css:'🎨', json:'📋', png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', mp3:'🎵', pdf:'📕', beep:'⚡' };
+        const map = { txt:'📄', md:'📄', js:'📜', html:'🌐', css:'🎨', json:'📋', png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', mp3:'🎵', mp4:'🎬', webm:'🎬', m4v:'🎬', mov:'🎬', ogv:'🎬', pdf:'📕', beep:'⚡' };
         return map[ext] || '📄';
       }
 
@@ -136,10 +145,25 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
       // ── Render ────────────────────────────────────────────────────────────────
 
       async function render() {
-        pathInput.value = cwd;
+        pathInput.value = cwd === TRASH_VIEW ? 'Recycle Bin' : cwd;
         selected = null;
         grid.innerHTML = '';
         renderSidebar();
+        const inTrash = cwd === TRASH_VIEW;
+        [newFolderBtn, newFileBtn, importBtn].forEach(button => { button.style.display = inTrash ? 'none' : ''; });
+        emptyTrashBtn.style.display = inTrash ? '' : 'none';
+        if (!inTrash) {
+          grid.style.display = 'grid';
+          grid.style.flexDirection = '';
+          grid.style.alignContent = 'start';
+          grid.style.gap = '4px';
+        } else {
+          mainArea.oncontextmenu = null;
+        }
+        if (inTrash) {
+          await renderTrash();
+          return;
+        }
 
         // Special case: /Apps shows all installed apps from DB + native system apps
         if (cwd === '/Apps') {
@@ -259,13 +283,14 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
         // Drop zone for host OS files and desktop drag
         mainArea.classList.add('bos-fm-dropzone');
         mainArea.addEventListener('dragover', e => {
-          if (!e.dataTransfer.types.includes('Files')) return;
+          if (cwd === TRASH_VIEW || !e.dataTransfer.types.includes('Files')) return;
           e.preventDefault();
           mainArea.style.outline = '2px dashed var(--wm-accent)';
           mainArea.style.background = 'rgba(0,120,212,0.05)';
         });
         mainArea.addEventListener('dragleave', () => { mainArea.style.outline = ''; mainArea.style.background = ''; });
         mainArea.addEventListener('drop', async e => {
+          if (cwd === TRASH_VIEW) return;
           e.preventDefault();
           mainArea.style.outline = ''; mainArea.style.background = '';
           const files = Array.from(e.dataTransfer.files);
@@ -284,6 +309,55 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
           });
         });
 
+      }
+
+      async function renderTrash() {
+        grid.style.display = 'flex';
+        grid.style.flexDirection = 'column';
+        grid.style.alignContent = 'stretch';
+        grid.style.gap = '6px';
+        const items = await fs.listTrash();
+        statusBar.textContent = items.length + ' item' + (items.length === 1 ? '' : 's') + ' in Recycle Bin';
+        if (!items.length) {
+          grid.innerHTML = '<div style="padding:16px;color:var(--wm-text-dim)">Recycle Bin is empty</div>';
+          emptyTrashBtn.disabled = true;
+          return;
+        }
+        emptyTrashBtn.disabled = false;
+        items.forEach(item => {
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--wm-border);border-radius:7px;background:rgba(255,255,255,.03);min-height:54px';
+          const icon = document.createElement('span');
+          icon.style.cssText = 'font-size:24px';
+          icon.textContent = fileIcon(item.originalName, item.originalType);
+          const details = document.createElement('div');
+          details.style.cssText = 'flex:1;min-width:0';
+          const name = document.createElement('div');
+          name.style.cssText = 'font-size:13px;color:var(--wm-text);word-break:break-word';
+          name.textContent = item.originalName;
+          const date = document.createElement('div');
+          date.style.cssText = 'font-size:11px;color:var(--wm-text-dim);margin-top:2px';
+          date.textContent = 'Deleted ' + new Date(item.deletedAt).toLocaleString() + ' · ' + item.originalPath;
+          details.append(name, date);
+          const restore = mkBtn('↩ Restore');
+          restore.onclick = async () => {
+            restore.disabled = true;
+            const result = await fs.restoreTrash(item.id);
+            if (!result.ok) { wm.notify('Restore failed: ' + result.error); restore.disabled = false; return; }
+            wm.notify('Restored to ' + result.path);
+            render();
+          };
+          const remove = mkBtn('Permanently Delete');
+          remove.style.cssText += ';color:#ff8888;border-color:rgba(200,50,50,.35)';
+          remove.onclick = async () => {
+            if (!confirm('Permanently delete "' + item.originalName + '" and its contents? This cannot be undone.')) return;
+            const result = await fs.permanentlyDeleteTrash(item.id);
+            if (!result.ok) { wm.notify('Delete failed: ' + result.error); return; }
+            render();
+          };
+          row.append(icon, details, restore, remove);
+          grid.appendChild(row);
+        });
       }
 
       // ── /Apps virtual directory ───────────────────────────────────────────────
@@ -352,33 +426,8 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
 
       // ── File opening ──────────────────────────────────────────────────────────
 
-      async function openFile(path, name) {
-        const ext = name.split('.').pop().toLowerCase();
-        if (name.endsWith('.beep')) {
-          await launcher.launch(path);
-        } else if (ext === 'stage') {
-          if (!await db.apps.get('stage')) {
-            wm.notify('Install Stage from the App Store to open this presentation');
-            return;
-          }
-          try { await launcher.launchById('stage', { file: path }); }
-          catch (error) { wm.notify('Could not open Stage: ' + error.message); }
-        } else if (ext === 'writer') {
-          if (!await db.apps.get('writer')) {
-            wm.notify('Install Writer from the App Store to open this document');
-            return;
-          }
-          try { await launcher.launchById('writer', { file: path }); }
-          catch (error) { wm.notify('Could not open Writer: ' + error.message); }
-        } else if (['txt','md','js','json','html','css'].includes(ext)) {
-          wm.openSystemApp('texteditor', { file: path });
-        } else if (['mp3','wav','ogg'].includes(ext)) {
-          wm.openSystemApp('musicplayer', { file: path });
-        } else if (isImageFile(name)) {
-          wm.openSystemApp('imageviewer', { file: path });
-        } else {
-          wm.notify('No app to open: ' + name);
-        }
+      async function openFile(path, name, choose = false) {
+        await fileAssociations.open(path, name, { choose });
       }
 
       // ── Context menus ─────────────────────────────────────────────────────────
@@ -391,6 +440,9 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
             else openFile(fullPath(item.name), item.name);
           }},
         ];
+        if (item.type === 'file' && !item.name.toLowerCase().endsWith('.beep')) {
+          items.push({ label: '🧭 Open with', action: () => openFile(fullPath(item.name), item.name, true) });
+        }
         if (isImage && item.type === 'file') {
           items.push({ label: '🎨 Open in Paint', action: () => wm.openSystemApp('paint', { file: fullPath(item.name) }) });
         }
@@ -409,8 +461,8 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
             const nn = prompt('New name:', item.name);
             if (nn && nn !== item.name) { await fs.rename(fullPath(item.name), nn); render(); }
           }},
-          { label: '🗑️ Delete', action: async () => {
-            if (!confirm('Delete "' + item.name + '"?')) return;
+          { label: '🗑️ Move to Recycle Bin', action: async () => {
+            if (!confirm('Move "' + item.name + '" to the Recycle Bin?')) return;
             const res = await fs.rm(fullPath(item.name));
             if (res.ok) render(); else wm.notify('Delete failed: ' + res.error);
           }}
@@ -456,7 +508,7 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
         menu.id = 'bos-ctx-menu';
         menu.style.cssText = 'position:fixed;left:' + Math.min(x, window.innerWidth - 200) + 'px;' +
           'top:' + Math.min(y, window.innerHeight - items.length * 34) + 'px;' +
-          'background:rgba(20,20,40,0.97);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.12);' +
+          'background:var(--wm-panel-bg);backdrop-filter:var(--wm-backdrop-filter);border:1px solid var(--wm-panel-border);' +
           'border-radius:8px;padding:4px;z-index:99999;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,0.5)';
         items.forEach(item => {
           if (item === 'sep') {
@@ -489,6 +541,13 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
       newFolderBtn.onclick = async () => { const n = prompt('Folder name:'); if (n) { await fs.mkdir(fullPath(n)); render(); }};
       newFileBtn.onclick   = async () => { const n = prompt('File name:', 'untitled.txt'); if (n) { await createFile(fullPath(n), ''); render(); }};
       refreshBtn.onclick   = render;
+      emptyTrashBtn.onclick = async () => {
+        const items = await fs.listTrash();
+        if (!items.length || !confirm('Permanently delete all ' + items.length + ' item(s) in the Recycle Bin? This cannot be undone.')) return;
+        const result = await fs.emptyTrash();
+        if (!result.ok) { wm.notify('Could not empty the Recycle Bin'); return; }
+        render();
+      };
       importBtn.onclick    = () => fileInput.click();
 
       fileInput.onchange = async () => {
@@ -541,3 +600,5 @@ export function registerFileManager({ wm, fs, db, launcher, kernel, settings }) 
     }
   });
 }
+
+

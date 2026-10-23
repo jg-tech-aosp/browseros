@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Music Player (Native System Component)
+ * BrowserOS — Music Player (Native System Component)
  * src/shell/musicplayer.js
  */
 
@@ -10,6 +10,7 @@ export function registerMusicPlayer({ wm, fs }) {
     icon:   '🎵',
     width:  380,
     height: 480,
+    fileTypes: ['.mp3', '.wav', '.ogg'],
     mount(container, instanceId, args) {
       let audio    = new Audio();
       let playlist = [];

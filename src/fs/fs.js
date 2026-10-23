@@ -1,5 +1,5 @@
 /**
- * BrowserOS v2 — Filesystem
+ * BrowserOS — Filesystem
  * src/fs/fs.js
  *
  * Implements all filesystem operations defined in SPEC.md §5 BOS.fs.
@@ -8,6 +8,7 @@
  */
 
 import { DB } from './db.js';
+import { OS_VERSION } from '../version.js';
 
 // ─── Mime detection ───────────────────────────────────────────────────────────
 
@@ -31,6 +32,10 @@ const MIME_MAP = {
   wav:  'audio/wav',
   ogg:  'audio/ogg',
   mp4:  'video/mp4',
+  webm: 'video/webm',
+  m4v:  'video/mp4',
+  mov:  'video/quicktime',
+  ogv:  'video/ogg',
   pdf:  'application/pdf',
   beep: 'application/beep',
   zip:  'application/zip',
@@ -66,17 +71,24 @@ const DEFAULT_FILES = [
   {
     path:    '/Documents/Welcome.txt',
     content: [
-      'Welcome to BrowserOS v2!',
+      'Welcome to BrowserOS!',
       '',
-      'This is a complete rewrite of BrowserOS with:',
-      '- Proper app sandboxing via iframes + postMessage',
-      '- IndexedDB filesystem (no more localStorage limits)',
-      '- .beep v2 executable format (zip-based, permissions model)',
-      '- BOS v2 async API',
-      '- Tabs, bookmarks, history in Browser',
-      '- App Store',
+      'Your desktop, in a browser tab.',
       '',
-      'Have fun.',
+      'Open Help from Start for the shortcut manual and a tour of your desktop.',
+      'Open Info to discover what is new in version ' + OS_VERSION + '.',
+      '',
+      '- Clear Ice themes, wallpapers, and desktop widgets',
+      '- Window snapping, app switching, and taskbar previews',
+      '- Recycle Bin and Open with for your virtual files',
+      '- Native Calendar, Clock, and Video Player',
+      '- More Settings, Developer tools, and Terminal commands',
+      '- Writer, Stage, and Cells available from the App Store',
+      '',
+      'Settings > Storage lets you download a full profile backup.',
+      'Your files stay in this browser profile. Keep backups somewhere safe.',
+      '',
+      'Make yourself at home.',
     ].join('\n'),
   },
 ];
@@ -194,7 +206,8 @@ export class FileSystem {
     const node = await this._db.fs.get(normPath(path));
     if (!node || node.type !== 'dir') return null;
     const children = await this._db.fs.list(normPath(path));
-    return children.map(n => ({
+    // The recycle area is implementation storage, not a user-visible folder.
+    return children.filter(n => !(normPath(path) === '/' && n.path === '/.RecycleBin')).map(n => ({
       type:     n.type,
       size:     n.size,
       name:     fileName(n.path),
@@ -299,25 +312,120 @@ export class FileSystem {
   }
 
   /**
-   * Delete a file or empty directory.
-   * Returns error if directory is not empty.
-   * @returns {Promise<{ok:boolean, error?:string}>}
+   * Move a file or folder into the recycle bin.
+   * @returns {Promise<{ok:boolean, error?:string, id?:string}>}
    */
   async rm(path) {
+    return this.trash(path);
+  }
+
+  async trash(path) {
     path = normPath(path);
+    const protectedPaths = ['/', '/.RecycleBin', '/Desktop', '/Documents', '/Pictures', '/Music', '/Downloads', '/Apps'];
+    if (protectedPaths.includes(path) || path.startsWith('/.RecycleBin/')) {
+      return { ok: false, error: 'This system folder cannot be moved to the recycle bin; delete its contents instead' };
+    }
     const node = await this._db.fs.get(path);
     if (!node) return { ok: false, error: `${path} does not exist` };
 
-    if (node.type === 'dir') {
-      const children = await this._db.fs.list(path);
-      if (children.length > 0) {
-        return { ok: false, error: `Directory not empty: ${path}. Delete contents first.` };
-      }
+    let bin = await this._db.fs.get('/.RecycleBin');
+    if (bin && bin.type !== 'dir') return { ok: false, error: 'Recycle Bin storage is unavailable' };
+    if (!bin) {
+      bin = makeDir('/.RecycleBin');
+      await this._db.fs.put(bin);
     }
 
-    await this._db.fs.delete(path);
+    const id = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    const destination = '/.RecycleBin/' + id;
+    const info = {
+      originalPath: path,
+      originalName: fileName(path),
+      originalType: node.type,
+      deletedAt: now(),
+    };
+    const all = node.type === 'dir' ? [node, ...await this._db.fs.listAll(path)] : [node];
+
+    for (const entry of all) {
+      const nextPath = destination + entry.path.slice(path.length);
+      const moved = { ...entry, path: nextPath, modified: now() };
+      if (entry.path === path) moved.trashInfo = info;
+      await this._db.fs.put(moved);
+    }
+    for (const entry of all) await this._db.fs.delete(entry.path);
+
     const parent = parentPath(path);
     if (parent) await this._touchDir(parent);
+    return { ok: true, id };
+  }
+
+  async listTrash() {
+    const entries = await this._db.fs.list('/.RecycleBin');
+    return entries
+      .filter(entry => entry.trashInfo && entry.path !== '/.RecycleBin')
+      .map(entry => ({ id: entry.path.split('/').pop(), ...entry.trashInfo }))
+      .sort((a, b) => b.deletedAt - a.deletedAt);
+  }
+
+  async restoreTrash(id) {
+    if (typeof id !== 'string' || !/^[a-z0-9-]+$/i.test(id)) return { ok: false, error: 'Invalid recycle bin item' };
+    const storedPath = '/.RecycleBin/' + id;
+    const node = await this._db.fs.get(storedPath);
+    if (!node || !node.trashInfo) return { ok: false, error: 'Recycle bin item not found' };
+
+    const info = node.trashInfo;
+    const originalPath = info.originalPath;
+    const originalName = info.originalName;
+    if (typeof originalPath !== 'string' || !originalPath.startsWith('/') ||
+        originalPath.split('/').includes('..') || originalPath === '/' ||
+        originalPath === '/.RecycleBin' || originalPath.startsWith('/.RecycleBin/') ||
+        typeof originalName !== 'string' || !originalName || originalName.includes('/') || originalName.includes('\\')) {
+      return { ok: false, error: 'Recycle Bin item has invalid restore information' };
+    }
+    let parent = parentPath(originalPath);
+    if (!parent || parent === '/.RecycleBin' || parent.startsWith('/.RecycleBin/')) parent = '/';
+    const parts = parent.split('/').filter(Boolean);
+    let current = '';
+    for (const part of parts) {
+      current += '/' + part;
+      const existingDir = await this._db.fs.get(current);
+      if (!existingDir) await this._db.fs.put(makeDir(current));
+      else if (existingDir.type !== 'dir') return { ok: false, error: 'Restore location is blocked by a file: ' + current };
+    }
+
+    let destination = (parent === '/' ? '' : parent) + '/' + originalName;
+    const splitName = originalName.lastIndexOf('.');
+    const stem = splitName > 0 ? originalName.slice(0, splitName) : originalName;
+    const extension = splitName > 0 ? originalName.slice(splitName) : '';
+    let suffix = 1;
+    while (await this._db.fs.get(destination)) {
+      destination = (parent === '/' ? '' : parent) + '/' + stem + '(' + suffix++ + ')' + extension;
+    }
+
+    const all = node.type === 'dir' ? [node, ...await this._db.fs.listAll(storedPath)] : [node];
+    for (const entry of all) {
+      const restoredPath = destination + entry.path.slice(storedPath.length);
+      const restored = { ...entry, path: restoredPath, modified: now() };
+      delete restored.trashInfo;
+      await this._db.fs.put(restored);
+    }
+    for (const entry of all) await this._db.fs.delete(entry.path);
+    await this._touchDir(parent);
+    return { ok: true, path: destination };
+  }
+
+  async permanentlyDeleteTrash(id) {
+    if (typeof id !== 'string' || !/^[a-z0-9-]+$/i.test(id)) return { ok: false, error: 'Invalid recycle bin item' };
+    const path = '/.RecycleBin/' + id;
+    const node = await this._db.fs.get(path);
+    if (!node || !node.trashInfo) return { ok: false, error: 'Recycle bin item not found' };
+    const all = node.type === 'dir' ? [node, ...await this._db.fs.listAll(path)] : [node];
+    for (const entry of all) await this._db.fs.delete(entry.path);
+    return { ok: true };
+  }
+
+  async emptyTrash() {
+    const entries = await this.listTrash();
+    for (const entry of entries) await this.permanentlyDeleteTrash(entry.id);
     return { ok: true };
   }
 
@@ -346,6 +454,10 @@ export class FileSystem {
     dest = normPath(dest);
 
     if (src === dest) return { ok: true };
+    if (src === '/.RecycleBin' || src.startsWith('/.RecycleBin/') ||
+        dest === '/.RecycleBin' || dest.startsWith('/.RecycleBin/')) {
+      return { ok: false, error: 'Recycle Bin storage cannot be moved directly' };
+    }
 
     const node = await this._db.fs.get(src);
     if (!node) return { ok: false, error: `${src} does not exist` };
